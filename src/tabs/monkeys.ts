@@ -4,6 +4,7 @@ import type { SeriesId } from '../data/types.ts';
 import { maxDrawdown, mean, percentileRank, perfStats, quantile, wealth } from '../engine/metrics.ts';
 import { wealthDates } from '../model.ts';
 import { baseLayout, bins, draw, exportsHtml, LABEL, SHORT, wireExports } from '../ui/charts.ts';
+import { biasLabel, biasShade } from './performance.ts';
 import { basisLabel, configLabel, periodLabel, stats, type Ctx } from '../ui/context.ts';
 import { download, tableCsv, toCsv } from '../ui/export.ts';
 import { escapeHtml, num, pct } from '../ui/format.ts';
@@ -74,7 +75,7 @@ export function renderMonkeys(c: Ctx): void {
   const paths = view.monkeys.r.map((r) => wealth(r));
   const tr: unknown[] = paths.map((p, j) => ({ x: dates, y: p, type: 'scatter', mode: 'lines', line: { color: t.muted, width: 0.6 }, opacity: 0.35, showlegend: j === 0, name: 'Monkeys', legendgroup: 'mk', hoverinfo: 'skip' }));
   for (const id of [...marks, 'MONKEYS' as SeriesId]) tr.push({ x: dates, y: wealth(view.series.get(id)!.r), type: 'scatter', mode: 'lines', name: SHORT[id], line: { color: t.color[id], width: id === 'CW' ? 3 : 2, dash: id === 'MONKEYS' ? 'dash' : 'solid' }, hovertemplate: `${LABEL[id]}: %{y:.1f}<extra></extra>` });
-  draw(document.getElementById('ch-mk-paths'), tr, baseLayout(t, { hovermode: 'closest', xaxis: { type: 'date' }, yaxis: { type: s.log ? 'log' : 'linear', title: { text: 'Value of 100 CHF' } } }));
+  draw(document.getElementById('ch-mk-paths'), tr, baseLayout(t, { hovermode: 'closest', xaxis: { type: 'date' }, yaxis: { type: s.log ? 'log' : 'linear', title: { text: 'Value of 100 CHF' } }, shapes: biasShade(c, dates[0]), annotations: biasLabel(c, dates[0]) }));
 
   wireExports(c.root, {
     'ch-mk-paths': () => toCsv([['date', ...paths.map((_, j) => `monkey_${j}`)], ...dates.map((d, i) => [d, ...paths.map((p) => p[i])])]),

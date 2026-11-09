@@ -146,3 +146,9 @@ ul.plain li { margin: 4px 0; }
 }
 table.academic thead th { text-align: center; }
 table.academic thead th:first-child { text-align: left; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; align-self: flex-end; }
+.seg button { border: 0; border-radius: 0; background: var(--bg); color: var(--muted); padding: 6px 10px; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed='true'] { background: var(--accent); color: #fff; }
+[data-theme='dark'] .seg button[aria-pressed='true'] { color: #0e1115; }
+.banner button { margin-left: 8px; font-size: 12px; padding: 2px 8px; }

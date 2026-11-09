@@ -7,6 +7,19 @@ import { basisLabel, configLabel, periodLabel, stats, type Ctx } from '../ui/con
 import { toCsv } from '../ui/export.ts';
 import { escapeHtml, num, pct } from '../ui/format.ts';
 
+/** Shaded period affected by survivorship bias (before the first year with delistings in the data). */
+export function biasShade(c: Ctx, first: string): Record<string, unknown>[] {
+  const ctl = c.m.survivorship.controlled_start;
+  if (!ctl || c.view.period[0] >= ctl) return [];
+  return [{ type: 'rect', xref: 'x', yref: 'paper', x0: first, x1: `${ctl}-01`, y0: 0, y1: 1, fillcolor: 'rgba(237,161,0,0.10)', line: { width: 0 }, layer: 'below' }];
+}
+
+export function biasLabel(c: Ctx, first: string): Record<string, unknown>[] {
+  const ctl = c.m.survivorship.controlled_start;
+  if (!ctl || c.view.period[0] >= ctl) return [];
+  return [{ x: first, xref: 'x', xanchor: 'left', y: 1, yref: 'paper', yanchor: 'top', text: `survivorship bias until ${ctl}`, showarrow: false, font: { size: 11, color: c.theme.muted } }];
+}
+
 export function renderPerformance(c: Ctx): void {
   const { view, s, theme: t } = c;
   const dates = wealthDates(view.months);
@@ -74,7 +87,8 @@ export function renderPerformance(c: Ctx): void {
       yaxis: { domain: [0.46, 1], type: s.log ? 'log' : 'linear', title: { text: 'Value of 100 CHF' } },
       yaxis2: { domain: [0.24, 0.42], anchor: 'x', tickformat: '.0%', title: { text: 'Drawdown' }, rangemode: 'tozero' },
       yaxis3: { domain: [0, 0.2], anchor: 'x', title: { text: 'Relative to SPI' } },
-      shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y3', y0: 100, y1: 100, line: { color: t.zero, width: 1, dash: 'dot' } }],
+      shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y3', y0: 100, y1: 100, line: { color: t.zero, width: 1, dash: 'dot' } }, ...biasShade(c, dates[0])],
+      annotations: biasLabel(c, dates[0]),
     }),
   );
 

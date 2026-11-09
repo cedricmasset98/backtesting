@@ -3,6 +3,7 @@
 import type { HoldingsFile, StratId } from '../data/types.ts';
 import { monthEnd, STRATS } from '../model.ts';
 import { baseLayout, draw, exportsHtml, LABEL, SHORT, wireExports } from '../ui/charts.ts';
+import { biasShade } from './performance.ts';
 import { configLabel, type Ctx } from '../ui/context.ts';
 import { toCsv } from '../ui/export.ts';
 import { escapeHtml, pct } from '../ui/format.ts';
@@ -49,7 +50,7 @@ export function renderComposition(c: Ctx, hold: HoldingsFile): void {
   c.root.querySelector<HTMLSelectElement>('#hold-snap')!.onchange = (e) => c.set({ snap: (e.target as HTMLSelectElement).value });
 
   const line = (id: StratId, y: (number | null)[], x = dates) => ({ x, y, name: SHORT[id], type: 'scatter', mode: 'lines', line: { color: t.color[id], width: 1.6, dash: id === 'TP_SAMPLE' ? 'dot' : 'solid', shape: 'hv' }, hovertemplate: `${SHORT[id]}: %{y:.3~f}<extra></extra>` });
-  const lay = (title: string, fmt = '') => baseLayout(t, { hovermode: 'x unified', xaxis: { type: 'date' }, yaxis: { title: { text: title }, tickformat: fmt }, margin: { l: 55, r: 15, t: 10, b: 40 } });
+  const lay = (title: string, fmt = '') => baseLayout(t, { hovermode: 'x unified', xaxis: { type: 'date' }, yaxis: { title: { text: title }, tickformat: fmt }, margin: { l: 55, r: 15, t: 10, b: 40 }, shapes: biasShade(c, dates[0]) });
   draw(document.getElementById('ch-effn'), ids.map((id) => line(id, pick(f[id].eff_n))), { ...lay('Effective N'), yaxis: { ...(lay('Effective N').yaxis as object), type: 'log' } });
   draw(document.getElementById('ch-npos'), ids.map((id) => line(id, pick(f[id].n_pos))), lay('Positions'));
   draw(document.getElementById('ch-maxw'), ids.map((id) => line(id, pick(f[id].max_w))), lay('Largest weight', '.0%'));

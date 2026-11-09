@@ -55,6 +55,10 @@ function buildControls(): void {
     <fieldset><legend>Period</legend>
       <label>Start <input type="month" id="c-start" /></label>
       <label>End <input type="month" id="c-end" /></label>
+      <div class="seg" role="group" aria-label="Sample">
+        <button type="button" id="c-ctrl" title="Start when delisted stocks are covered by the data">Bias-controlled</button>
+        <button type="button" id="c-full" title="Whole available history, including the years affected by survivorship bias">Full history</button>
+      </div>
       <span class="muted small" id="c-avail"></span>
     </fieldset>
     <fieldset><legend>Construction</legend>
@@ -94,6 +98,11 @@ function buildControls(): void {
       setState({ visible: vis });
     }),
   );
+  const controlled = manifest.survivorship.controlled_start;
+  $('c-ctrl').onclick = () => setState({ start: controlled ?? base.start, end: manifest.last_complete_month });
+  // earliest month of any configuration: buildView clamps it to what the selected configuration has
+  const earliest = manifest.configs.map((c) => c.first_return).sort()[0] ?? base.start;
+  $('c-full').onclick = () => setState({ start: earliest, end: manifest.last_complete_month });
   $('c-link').onclick = () => {
     void navigator.clipboard?.writeText(location.href).then(() => {
       $('c-link').textContent = 'Link copied';
@@ -105,6 +114,9 @@ function buildControls(): void {
 
 function syncControls(): void {
   ($('c-start') as HTMLInputElement).value = state.start;
+  const controlled = manifest.survivorship.controlled_start ?? '';
+  $('c-ctrl').setAttribute('aria-pressed', String(state.start >= controlled));
+  $('c-full').setAttribute('aria-pressed', String(state.start < controlled));
   ($('c-end') as HTMLInputElement).value = state.end;
   ($('c-window') as HTMLSelectElement).value = String(state.window);
   ($('c-freq') as HTMLSelectElement).value = state.freq;
@@ -138,12 +150,18 @@ async function render(): Promise<void> {
       return;
     }
     $('c-avail').textContent = `available ${view.available[0]} – ${view.available[1]}`;
+    // show the period actually used (requests outside the available range are clamped)
+    ($('c-start') as HTMLInputElement).value = view.period[0];
+    ($('c-end') as HTMLInputElement).value = view.period[1];
     const visible = ALL_SERIES.filter((id) => state.visible.includes(id) && view.series.has(id));
     const ctx: Ctx = { s: state, m: manifest, market, strat, monkeys, view, theme: readTheme(), root, visible: visible.length ? visible : ['CW'], set: setState };
     const banner = $('banner');
     const controlled = manifest.survivorship.controlled_start;
     banner.hidden = !(controlled && view.period[0] < controlled);
-    banner.innerHTML = banner.hidden ? '' : `Survivorship warning: the period starts before ${controlled}; delisted stocks are missing from the data before that date, which biases stock-based strategies upwards.`;
+    banner.innerHTML = banner.hidden
+      ? ''
+      : `<strong>Full history — survivorship bias until ${controlled}.</strong> Before that date the data contain almost no delisted companies (bankruptcies, takeovers): the universe is made of survivors, which flatters the stock-based strategies and the monkeys relative to the SPI. The shaded area on the charts marks these years. <button type="button" id="banner-ctrl">Back to the bias-controlled sample</button>`;
+    if (!banner.hidden) $('banner-ctrl').onclick = () => setState({ start: controlled!, end: manifest.last_complete_month });
     switch (state.tab) {
       case 'overview':
         renderOverview(ctx);

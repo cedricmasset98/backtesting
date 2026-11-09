@@ -4,6 +4,7 @@ import type { SeriesId } from '../data/types.ts';
 import { cumulativeCosts, mean, sd, type PerfStats } from '../engine/metrics.ts';
 import { monthEnd, STRATS } from '../model.ts';
 import { baseLayout, draw, exportsHtml, LABEL, SHORT, wireExports } from '../ui/charts.ts';
+import { biasShade } from './performance.ts';
 import { basisLabel, configLabel, periodLabel, stats, type Ctx } from '../ui/context.ts';
 import { download, tableCsv, toCsv } from '../ui/export.ts';
 import { escapeHtml, num, pct } from '../ui/format.ts';
@@ -150,7 +151,7 @@ export function renderRisk(c: Ctx): void {
   draw(
     document.getElementById('ch-rvol'),
     ids.map((id) => ({ x: dates, y: roll(view.series.get(id)!.r), name: SHORT[id], type: 'scatter', mode: 'lines', line: { color: t.color[id], width: id === 'CW' ? 2.5 : 1.5, dash: id === 'MONKEYS' ? 'dash' : id === 'TP_SAMPLE' ? 'dot' : 'solid' }, hovertemplate: `${SHORT[id]}: %{y:.1%}<extra></extra>` })),
-    baseLayout(t, { hovermode: 'x unified', yaxis: { title: { text: 'Volatility (annualised)' }, tickformat: '.0%' }, xaxis: { type: 'date' } }),
+    baseLayout(t, { hovermode: 'x unified', yaxis: { title: { text: 'Volatility (annualised)' }, tickformat: '.0%' }, xaxis: { type: 'date' }, shapes: biasShade(c, dates[0]) }),
   );
 
   wireExports(c.root, {

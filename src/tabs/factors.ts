@@ -8,6 +8,7 @@ import type { CovType } from '../engine/ols.ts';
 import { monthEnd } from '../model.ts';
 import { ALL_SERIES } from '../state.ts';
 import { baseLayout, draw, exportsHtml, LABEL, SHORT, wireExports } from '../ui/charts.ts';
+import { biasShade } from './performance.ts';
 import { basisLabel, configLabel, periodLabel, type Ctx } from '../ui/context.ts';
 import { download, tableCsv, toCsv } from '../ui/export.ts';
 import { escapeHtml, num, pct, pval, stars } from '../ui/format.ts';
@@ -186,11 +187,11 @@ export function renderFactors(c: Ctx): void {
       const rr = rollingOLS(smp.months, smp.y, smp.x, smp.names, s.roll, { cov: s.inference });
       const dates = rr.dates.map(monthEnd);
       const betaTraces = rr.names.slice(1).map((n, k) => ({ x: dates, y: rr.beta[k + 1], name: n, type: 'scatter', mode: 'lines', line: { width: 1.8, color: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300'][k] }, hovertemplate: `${n}: %{y:.2f}<extra></extra>` }));
-      draw(document.getElementById('ch-roll'), betaTraces, baseLayout(t, { hovermode: 'x unified', xaxis: { type: 'date' }, yaxis: { title: { text: 'Rolling beta' } } }));
+      draw(document.getElementById('ch-roll'), betaTraces, baseLayout(t, { hovermode: 'x unified', xaxis: { type: 'date' }, yaxis: { title: { text: 'Rolling beta' } }, shapes: biasShade(c, dates[0]) }));
       draw(document.getElementById('ch-ralpha'), [
         { x: [...dates, ...[...dates].reverse()], y: [...rr.high[0].map((v) => 12 * v), ...[...rr.low[0]].reverse().map((v) => 12 * v)], fill: 'toself', fillcolor: 'rgba(127,127,127,0.18)', line: { width: 0 }, hoverinfo: 'skip', showlegend: false, type: 'scatter' },
         { x: dates, y: rr.beta[0].map((v) => 12 * v), name: 'Alpha (annualised)', type: 'scatter', mode: 'lines', line: { color: t.color[pf], width: 2 }, hovertemplate: 'α: %{y:.2%}<extra></extra>' },
-      ], baseLayout(t, { showlegend: false, hovermode: 'x unified', xaxis: { type: 'date' }, yaxis: { title: { text: 'Rolling alpha (×12, 95 % CI)' }, tickformat: '.0%' } }));
+      ], baseLayout(t, { showlegend: false, hovermode: 'x unified', xaxis: { type: 'date' }, yaxis: { title: { text: 'Rolling alpha (×12, 95 % CI)' }, tickformat: '.0%' }, shapes: biasShade(c, dates[0]) }));
       q('#roll-note').textContent = `Each point uses the ${s.roll} months ending at that date (${rr.dates.length} windows), same inference method as the table.`;
       rollCsv = () => toCsv([['window_end', ...rr.names], ...rr.dates.map((d, i) => [d, ...rr.beta.map((b) => b[i])])]);
       ralphaCsv = () => toCsv([['window_end', 'alpha_monthly', 'ci_low', 'ci_high'], ...rr.dates.map((d, i) => [d, rr.beta[0][i], rr.low[0][i], rr.high[0][i]])]);

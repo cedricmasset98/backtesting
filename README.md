@@ -115,9 +115,11 @@ are not in the data, so no replication is claimed.
 
 The market-data README says delisted stocks start in 2012; in the files there is one delisting
 in 2012, one in 2015, then 9–13 per year from 2017. The pipeline measures this (first year with
-≥ 5 delistings) and the site's default evaluation period starts there (January 2017). Earlier
-months stay available — the extended sample starts between 1996 (12-month window) and 2005 (120-month window) — with
-a permanent warning banner.
+≥ 5 delistings) and the site's default evaluation period starts there (January 2017). The
+**Full history** button next to the period extends the sample to everything the data allow (from
+1996 with the 12-month window to 2005 with the 120-month window): a banner then warns that the
+results carry survivorship bias until 2017 and the affected years are shaded on the time charts;
+**Bias-controlled** returns to the default.
 
 ## 3. Strategies
 
