@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Swiss Equity Portfolio Lab — eight portfolio strategies on Swiss equities</title>
+    <meta name="description" content="Walk-forward backtests of eight portfolio strategies (cap-weighted SPI, equal weight, minimum variance, equal risk contribution, tangency, most diversified, inverse volatility, random monkeys) on Swiss equities, with factor analysis on Swiss factors." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231d4f91%22/%3E%3Cpath d=%22M5 24 L11 17 L16 20 L27 8%22 stroke=%22%23ff8a3d%22 stroke-width=%223%22 fill=%22none%22/%3E%3C/svg%3E" />
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sepl-theme'); } catch (e) {}
+        if (!t) t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <h1>Swiss Equity Portfolio Lab</h1>
+        <p class="subtitle">Portfolio construction, performance, risk and factor exposures on the Swiss stock market, in CHF</p>
+      </div>
+      <a class="sister" href="https://cedricmasset.ch/Empirical-Asset-Pricing/">Empirical Asset Pricing ↗</a>
+      <button id="theme" class="icon-btn" type="button" aria-label="Toggle light / dark mode" title="Light / dark mode"></button>
+    </header>
+    <div class="databar" id="databar" aria-live="polite">Loading data…</div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Sections"></nav>
+    <form class="controls" id="controls" aria-label="Settings" onsubmit="return false"></form>
+    <div class="banner" id="banner" role="status" hidden></div>
+    <main id="view" class="view" aria-live="polite"></main>
+    <footer class="foot">
+      <p>Research and teaching tool — not investment advice. Data: EODHD (private, not redistributed), Swiss National Bank, Global Factor Data (Jensen, Kelly &amp; Pedersen, 2023). Source code: <a href="https://github.com/cedricmasset98/backtesting">github.com/cedricmasset98/backtesting</a>.</p>
+    </footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

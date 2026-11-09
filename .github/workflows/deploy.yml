@@ -1,0 +1,131 @@
+name: Pipeline, tests and GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rebuild:
+        description: 'Ignore the results cache and rerun the whole pipeline'
+        type: boolean
+        default: false
+  schedule:
+    # 6th of each month, 05:17 UTC: picks up the month just completed in market-data
+    - cron: '17 5 6 * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MARKET_DATA_DIR: ${{ github.workspace }}/market-data
+      STRICT_REFERENCE: '1'
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v5
+
+      # Private data, read-only. MARKET_DATA_TOKEN is a fine-grained personal access
+      # token restricted to cedricmasset98/market-data with "Contents: read-only".
+      # It is only used by this step and never reaches the site.
+      - name: Check out the private market data (read-only)
+        uses: actions/checkout@v5
+        with:
+          repository: cedricmasset98/market-data
+          token: ${{ secrets.MARKET_DATA_TOKEN }}
+          path: market-data
+          persist-credentials: false
+          lfs: false
+
+      - name: Market-data version
+        id: md
+        run: echo "sha=$(git -C market-data rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Python dependencies (pinned)
+        run: python -m pip install -r requirements.txt
+
+      - name: Python tests (optimisers, walk-forward timing, delistings, costs, monkeys, privacy, statsmodels)
+        run: python -m pytest -q pipeline/tests
+
+      # Results depend only on the pipeline code and the market-data commit.
+      - name: Results cache
+        id: cache
+        if: ${{ !inputs.rebuild }}
+        uses: actions/cache@v4
+        with:
+          path: public/data
+          key: results-${{ steps.md.outputs.sha }}-${{ hashFiles('pipeline/**/*.py', 'requirements.txt') }}
+
+      - name: Private pipeline (walk-forward backtests, derived results only)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: python -m pipeline.build --jobs "$(nproc)"
+
+      - name: Remove the private data before building the site
+        run: rm -rf market-data
+
+      - name: statsmodels references for the TypeScript engine
+        run: python -m pipeline.statsref
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Node dependencies (locked)
+        run: npm ci --no-audit --no-fund
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: TypeScript tests (statistics, costs, factor models vs statsmodels)
+        run: npm test
+
+      - name: Build the site
+        run: npm run build
+
+      - name: Check the published files
+        run: |
+          bad=$(find dist -type f ! \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.map' -o -name '*.json' -o -name '*.svg' -o -name '*.ico' \))
+          if [ -n "$bad" ]; then echo "::error::Unexpected files in dist: $bad"; exit 1; fi
+          test -f dist/data/manifest.json
+          python - <<'PY'
+          import json
+          m = json.load(open("dist/data/manifest.json"))
+          assert m["privacy"]["status"] == "ok", m["privacy"]
+          print("privacy:", m["privacy"])
+          PY
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

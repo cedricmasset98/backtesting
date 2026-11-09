@@ -1,0 +1,89 @@
+/**
+ * Factor models estimated on monthly excess returns:
+ *
+ *   R_p − R_f = α + β_M MKT + β_S SMB + β_H HML + β_R RMW + β_C CMA + β_W MOM + ε
+ *
+ * MKT = SPI total return − Swiss r_f; SMB, HML, RMW, CMA, MOM = Swiss JKP
+ * long-short factors (market_equity, be_me, ope_be, at_gr1, ret_12_1) in CHF.
+ * Sample rule: the months of the selected period where the portfolio return,
+ * r_f and every factor of the model are available (no filling). The same rule
+ * is used by pipeline/statsref.py for the statsmodels reference.
+ */
+
+import { ols, type CovType, type OLSResult } from './ols.ts';
+
+export type FactorId = 'MKT' | 'SMB' | 'HML' | 'RMW' | 'CMA' | 'MOM';
+export type ModelId = 'CAPM' | 'FF3' | 'CARHART' | 'FF5' | 'FF5MOM';
+
+export const FACTORS: FactorId[] = ['MKT', 'SMB', 'HML', 'RMW', 'CMA', 'MOM'];
+export const MODELS: Record<ModelId, { label: string; factors: FactorId[] }> = {
+  CAPM: { label: 'CAPM', factors: ['MKT'] },
+  FF3: { label: 'FF3', factors: ['MKT', 'SMB', 'HML'] },
+  CARHART: { label: 'Carhart-4', factors: ['MKT', 'SMB', 'HML', 'MOM'] },
+  FF5: { label: 'FF5', factors: ['MKT', 'SMB', 'HML', 'RMW', 'CMA'] },
+  FF5MOM: { label: 'FF5+MOM', factors: ['MKT', 'SMB', 'HML', 'RMW', 'CMA', 'MOM'] },
+};
+export const MODEL_IDS = Object.keys(MODELS) as ModelId[];
+
+export interface FactorData {
+  months: string[];
+  rf: (number | null)[];
+  factors: Record<FactorId, (number | null)[]>;
+}
+
+export interface Sample {
+  months: string[];
+  y: number[];
+  x: number[][]; // with constant in column 0
+  names: string[];
+}
+
+/** Builds the regression sample for a portfolio return series (months/returns aligned). */
+export function buildSample(months: string[], r: (number | null)[], data: FactorData, model: ModelId): Sample {
+  const idx = new Map(data.months.map((m, i) => [m, i]));
+  const f = MODELS[model].factors;
+  const out: Sample = { months: [], y: [], x: [], names: ['alpha', ...f] };
+  months.forEach((m, t) => {
+    const i = idx.get(m);
+    const v = r[t];
+    if (i === undefined || v === null || !Number.isFinite(v)) return;
+    const rf = data.rf[i];
+    if (rf === null) return;
+    const row = f.map((k) => data.factors[k][i]);
+    if (row.some((z) => z === null || !Number.isFinite(z))) return;
+    out.months.push(m);
+    out.y.push(v - rf);
+    out.x.push([1, ...(row as number[])]);
+  });
+  return out;
+}
+
+export type FitOutcome =
+  | { ok: true; model: ModelId; sample: Sample; result: OLSResult }
+  | { ok: false; model: ModelId; reason: string; n: number };
+
+export function fitModel(months: string[], r: (number | null)[], data: FactorData, model: ModelId, cov: CovType): FitOutcome {
+  const s = buildSample(months, r, data, model);
+  const k = s.names.length;
+  if (s.y.length <= k + 1) {
+    return { ok: false, model, n: s.y.length, reason: `Only ${s.y.length} months with all ${MODELS[model].label} factors in the selected period (need more than ${k + 1}).` };
+  }
+  try {
+    return { ok: true, model, sample: s, result: ols(s.y, s.x, s.names, { cov }) };
+  } catch (e) {
+    return { ok: false, model, n: s.y.length, reason: (e as Error).message };
+  }
+}
+
+/**
+ * Attribution of the mean excess return: mean(R_p − R_f) = α̂ + Σ_k β̂_k · mean(F_k)
+ * holds exactly in-sample for OLS with a constant.
+ */
+export function attribution(fit: Extract<FitOutcome, { ok: true }>): { name: string; value: number }[] {
+  const { sample, result } = fit;
+  const n = sample.y.length;
+  return result.names.map((name, j) => {
+    const m = j === 0 ? 1 : sample.x.reduce((s, row) => s + row[j], 0) / n;
+    return { name, value: result.beta[j] * m };
+  });
+}

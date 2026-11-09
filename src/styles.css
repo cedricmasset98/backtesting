@@ -1,0 +1,148 @@
+/* Swiss Equity Portfolio Lab — visual language of cedricmasset.ch/Empirical-Asset-Pricing */
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --fg: #1a1e24;
+  --muted: #5d6673;
+  --grid: #e2e5ea;
+  --zero: #b5bcc6;
+  --border: #dde1e7;
+  --accent: #1d4f91;
+  --warn: #8a5a00;
+  --warn-bg: #fff6e0;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  /* series colours (validated categorical palette, fixed order) */
+  --c-CW: #52514e;
+  --c-EW: #2a78d6;
+  --c-GMV: #eb6834;
+  --c-ERC: #1baf7a;
+  --c-TP: #eda100;
+  --c-MDP: #e87ba4;
+  --c-IVP: #008300;
+  --c-MONKEYS: #6250d6;
+  --c-TP_SAMPLE: #eda100;
+  color-scheme: light;
+}
+[data-theme='dark'] {
+  --bg: #0e1115;
+  --panel: #161a20;
+  --fg: #e6e9ee;
+  --muted: #9aa4b1;
+  --grid: #2a3039;
+  --zero: #4a5360;
+  --border: #2a3039;
+  --accent: #7fb0ff;
+  --warn: #fcc419;
+  --warn-bg: #2b2412;
+  --shadow: none;
+  --c-CW: #c3c2b7;
+  --c-EW: #3987e5;
+  --c-GMV: #d95926;
+  --c-ERC: #199e70;
+  --c-TP: #c98500;
+  --c-MDP: #d55181;
+  --c-IVP: #008300;
+  --c-MONKEYS: #9085e9;
+  --c-TP_SAMPLE: #c98500;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+h2 { font-size: 19px; margin: 0 0 6px; letter-spacing: -0.01em; }
+h3 { font-size: 15px; margin: 0 0 8px; }
+h4 { font-size: 13.5px; margin: 0 0 4px; }
+
+.top { display: flex; align-items: center; gap: 20px; padding: 16px 28px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+.subtitle { margin: 2px 0 0; color: var(--muted); }
+.sister { margin-left: auto; font-size: 13px; text-decoration: none; }
+.icon-btn { font: inherit; font-size: 18px; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: pointer; }
+.databar { padding: 6px 28px; font-size: 12px; color: var(--muted); background: var(--panel); border-bottom: 1px solid var(--border); }
+
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; padding: 10px 28px 0; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+.tabs button { font: inherit; font-size: 13.5px; font-weight: 600; color: var(--muted); background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px 10px; cursor: pointer; }
+.tabs button:hover { color: var(--fg); }
+.tabs button[aria-selected='true'] { color: var(--accent); border-bottom-color: var(--accent); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end; padding: 12px 28px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.controls fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.controls legend { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px; padding: 0; }
+.controls label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.controls label.range { flex-direction: row; align-items: center; gap: 6px; }
+.controls input, .controls select, .tools select, button { font: inherit; font-size: 13px; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; }
+.controls input.num { width: 64px; }
+.controls input[type='range'] { padding: 0; width: 130px; }
+.controls .series { gap: 4px 6px; }
+.chip { flex-direction: row !important; align-items: center; gap: 5px !important; border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px 3px 6px; color: var(--fg) !important; cursor: pointer; }
+.chip input { margin: 0; }
+.actions { display: flex; gap: 6px; margin-left: auto; }
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+
+.banner { margin: 12px 28px 0; padding: 8px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 13px; border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); }
+.view { padding: 16px 28px 28px; display: flex; flex-direction: column; gap: 16px; max-width: 1500px; margin: 0 auto; }
+.view[aria-busy='true'] { opacity: 0.6; transition: opacity 0.2s; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; min-width: 0; }
+.card-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 6px; }
+.tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.tools label { display: flex; align-items: center; gap: 6px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.chart { width: 100%; height: 380px; }
+.chart.short { height: 300px; }
+.chart.tall { height: 480px; }
+.chart.xtall { height: 720px; }
+.note { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+.warn { color: var(--warn); background: var(--warn-bg); padding: 8px 12px; border-radius: 8px; margin: 8px 0 0; }
+.warnbox { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 35%, transparent); color: var(--fg); }
+.warnbox p { margin: 4px 0; }
+.exports { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+.exports button { font-size: 11.5px; padding: 2px 8px; color: var(--muted); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+
+.table-wrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.data th, table.data td { padding: 5px 9px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data thead th { font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+table.data tr.group th { text-align: left; background: color-mix(in srgb, var(--accent) 7%, transparent); color: var(--fg); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+table.data tr.sep th, table.data tr.sep td { border-top: 2px solid var(--border); }
+table.data.compact { font-size: 12px; }
+table.data.compact td:first-child { white-space: normal; }
+table.academic td { text-align: center; vertical-align: top; }
+table.academic .coef { font-weight: 600; }
+table.academic .tstat { color: var(--muted); font-size: 12px; }
+table.academic sup { font-weight: 400; color: var(--accent); }
+td.na { color: var(--muted); }
+details summary { cursor: pointer; color: var(--accent); margin: 10px 0 6px; font-size: 13px; }
+
+.hero p { color: var(--muted); margin: 0 0 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; }
+.tile-v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tile-l { font-size: 12px; color: var(--muted); }
+ul.plain { padding-left: 18px; margin: 6px 0; }
+ul.plain li { margin: 4px 0; }
+.prose p, .prose li { max-width: 980px; }
+.prose h3 { margin-top: 18px; }
+.prose table.data { margin: 8px 0; }
+.prose table.data td { white-space: normal; text-align: left; }
+.holdings { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.hold table td:first-child { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+.foot { padding: 14px 28px 30px; font-size: 12px; color: var(--muted); text-align: center; }
+
+@media (max-width: 900px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .top, .controls, .tabs, .databar { padding-left: 14px; padding-right: 14px; }
+  .view { padding: 12px 10px 20px; }
+  .chart.xtall { height: 620px; }
+  .sister { display: none; }
+  .tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .tabs button { white-space: nowrap; }
+}
+table.academic thead th { text-align: center; }
+table.academic thead th:first-child { text-align: left; }
