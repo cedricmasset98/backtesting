@@ -4,8 +4,8 @@
  * synthetic dataset and on the published strategy returns of the default
  * configuration (same sample rule as the browser).
  * Reference: tests/reference/statsmodels_factor.json (python -m pipeline.statsref).
- * With STRICT_REFERENCE=1 (CI) the reference must exist, come from statsmodels,
- * and include the published cases.
+ * With STRICT_REFERENCE=1 (CI) the reference must exist and come from statsmodels;
+ * with REQUIRE_PUBLISHED=1 (deployment build) it must include the published cases.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,7 +73,7 @@ if (!existsSync(refPath)) {
 
   test('reference produced by statsmodels (CI)', { skip: !strict }, () => {
     assert.equal(ref.engine, 'statsmodels');
-    assert.ok(ref.published && ref.published.cases.length > 0, 'published cases missing');
+    if (process.env.REQUIRE_PUBLISHED === '1') assert.ok(ref.published && ref.published.cases.length > 0, 'published cases missing');
   });
 
   test('synthetic dataset: 5 models × 3 inference methods', () => {

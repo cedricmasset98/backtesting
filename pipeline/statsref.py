@@ -146,8 +146,8 @@ def main() -> None:
     print(f"{OUT} written ({ENGINE}); synthetic cases {len(out['synthetic']['cases'])}, published cases {n_pub}.")
     if os.environ.get("STRICT_REFERENCE") == "1" and ENGINE != "statsmodels":
         raise SystemExit("STRICT_REFERENCE=1 but statsmodels is not installed.")
-    if os.environ.get("STRICT_REFERENCE") == "1" and out["published"] is None:
-        raise SystemExit("STRICT_REFERENCE=1 but public/data has not been built.")
+    if os.environ.get("REQUIRE_PUBLISHED") == "1" and out["published"] is None:
+        raise SystemExit("REQUIRE_PUBLISHED=1 but public/data has not been built.")
 
 
 if __name__ == "__main__":
