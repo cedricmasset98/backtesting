@@ -172,3 +172,6 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # ~65 MB of results: the first file sync can exceed the 10-minute default
+          timeout: 1800000
