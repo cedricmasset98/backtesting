@@ -191,6 +191,13 @@ beta and volatility down. The report gives the first-order autocorrelation, the 
 ratio and volatility (AR(1) autocorrelations) and the Dimson (1979) summed beta and alpha with one
 lag of the market (`src/engine/stale.ts`).
 
+Multifactor stale-price sensitivity (results report): a second diagnostic estimates the
+main factor model both with and without the preceding **calendar month's** SPI excess return.
+Both regressions use exactly the same observations (including the available JKP factors),
+Newey–West inference and annualised alphas; Holm-adjusted alpha p-values are included.
+This identifies sensitivity to delayed market exposure but neither repairs stale price
+observations nor establishes that the lag is caused by illiquidity (`src/engine/factors.ts`).
+
 Universe vs weighting: strategy − SPI = (EW − SPI) + (strategy − EW) in CAGR. The first term mixes
 the reconstructed universe and equal weighting (small-cap tilt) against the official cap-weighted
 index; only the second isolates the weighting rule (Overview and Risk & Return tabs).
