@@ -96,16 +96,25 @@ the static design costs nothing to host and keeps the data in one private place.
    Dufry/Avolta, Georg Fischer, Helvetia, …), and tickers with identical monthly return histories
    under different ISINs: one ticker kept (active first, then longest history — the rule of
    `market-data/scripts/panels.py`).
-3. **Cleaning (rows removed, never filled).** Placeholder prices (≤ 0.001 or ≥ 999,000 CHF),
-   one-day spikes ×3 undone within 5 days, history before an unreverted ×25 level break; monthly
-   reversals > 300 % (Ince & Porter, 2006) unusable for estimation.
+3. **Cleaning — ex post corrections kept apart from point-in-time filters.**
+   *Ex post vendor-error corrections* (documented cleaning hypothesis, rows removed, never filled):
+   placeholder prices (≤ 0.001 or ≥ 999,000 CHF, a row-local test) and the history before an
+   unreverted ×25 level break (this one uses later rows by construction; 3 stocks).
+   *Point-in-time filters*: one-day ×3 spikes are only flagged and ignored once their reversal
+   (≤ 5 trading days) has been observed — a month-end spike enters that month's decision as
+   published; Ince-Porter monthly reversals (> 300 % then back) make the two months unusable for
+   estimation only from the month the reversal is observed (`data.estimation_window`). Realised
+   returns use the corrected prices (a vendor spike is not a traded price), so the valuation of a
+   month can be revised a few days later; decisions never are.
 4. **Eligibility at month-end t.** Price in month t and a trade within 7 days of month-end; median
    daily traded value over the last 63 trading days ≥ CHF 50,000 and ≤ 50 % days without volume;
    a complete window of monthly returns (no gap, no filling). At least 30 eligible stocks per decision.
-5. **Suspensions and delistings.** A month without any price inside the listing life is valued at
-   the last price (0 % return) but is not an estimation return. A held stock whose listing ends is
-   liquidated at its last price; the proceeds are reinvested pro rata at the next month-end and
-   counted in turnover.
+5. **Suspensions and delistings (point in time).** A month without any price inside the listing
+   life is valued at the last price (0 % return) but is not an estimation return. A holding without
+   any price during a whole month — delisting or suspension, indistinguishable at that date — earns
+   0 % that month, is written off at its last price at the month-end and the proceeds are
+   reinvested pro rata (counted in turnover). The final listing date is never used. There is no
+   delisting return beyond the last price (takeover premia and bankruptcy losses are both missed).
 
 This is a reconstructed universe of Swiss-listed stocks, **not** the historical SPI constituents
 (not available). The cap-weighted strategy is the official SPI series: free-float capitalisations
@@ -115,11 +124,13 @@ are not in the data, so no replication is claimed.
 
 The market-data README says delisted stocks start in 2012; in the files there is one delisting
 in 2012, one in 2015, then 9–13 per year from 2017. The pipeline measures this (first year with
-≥ 5 delistings) and the site's default evaluation period starts there (January 2017). The
+≥ 5 delistings) and the site's default evaluation period starts there (January 2017). This is a
+**reduced-bias** sample, not a bias-free one: the threshold is a heuristic and the coverage has not
+been checked against an independent register of SIX listings and delistings. The
 **Full history** button next to the period extends the sample to everything the data allow (from
 1996 with the 12-month window to 2005 with the 120-month window): a banner then warns that the
 results carry survivorship bias until 2017 and the affected years are shaded on the time charts;
-**Bias-controlled** returns to the default.
+**Reduced bias** returns to the default.
 
 ## 3. Strategies
 
@@ -130,15 +141,15 @@ All portfolios are long-only, fully invested, unlevered and capped (25 / 10 / 5 
 | CW | SPI total return | official index series, no costs |
 | EW | w<sub>i</sub> = 1/N | over the eligible universe |
 | GMV | min w'Σw | short SPG run + exact primal active-set QP (KKT checked) |
-| ERC | w<sub>i</sub>(Σw)<sub>i</sub> equal | Newton on min ½y'Σy − (1/N)Σ ln y<sub>i</sub> (Spinu 2013); equal variance contributions ⇔ equal volatility contributions |
+| ERC | w<sub>i</sub>(Σw)<sub>i</sub> equal | Newton on min ½y'Σy − (1/N)Σ ln y<sub>i</sub> (Spinu 2013); equal variance contributions ⇔ equal volatility contributions. With a binding cap: risk budgeting under bounds — capped stocks at the cap with a contribution ≤ λ, all others with exactly equal contributions λ (active set; for fixed λ₀ a convex log-barrier problem, λ₀ adjusted so that Σw = 1); binding frequency reported in the Composition tab |
 | TP | max (w'μ − r<sub>f</sub>)/√(w'Σw) | μ: Bayes-Stein (Jorion 1986) towards the GMV mean; pseudo-concave ⇒ KKT point = global max; λ-iteration with exact QPs. If no portfolio has positive expected excess return: GMV, flagged |
 | TP (sample μ) | same with sample means | sensitivity to the expected-return estimator |
 | MDP | max w'σ/√(w'Σw) | same solver as TP (Choueifaty & Coignard 2008) |
 | IVP | w<sub>i</sub> ∝ 1/σ<sub>i</sub> | |
 | Monkeys | K random stocks, equal weights | re-drawn at each rebalancing date from the same eligible universe; seed (seed, monkey, yyyymm) |
 
-Caps: constraint inside the optimisation for GMV/TP/MDP; excess redistributed pro rata
-("water filling") for EW/IVP/ERC.
+Caps: constraint inside the optimisation for GMV/TP/MDP/ERC; excess redistributed pro rata
+("water filling") for EW/IVP.
 
 Covariance: *Ledoit-Wolf* (2004) shrinkage towards constant correlation (diagonal unchanged), or
 *sample* covariance + 10<sup>−4</sup>·tr(S)/N ridge — the sample matrix is singular in every
@@ -170,6 +181,14 @@ is shown with its t (or z) statistic below it, stars at 10/5/1 %, standard error
 R², adjusted R², n. Diagnostics: Jarque-Bera, Breusch-Pagan (Koenker), Ljung-Box, Q-Q plot.
 Attribution: mean(R − R<sub>f</sub>) = α̂ + Σβ̂<sub>k</sub>·mean(F<sub>k</sub>) (exact in-sample).
 
+Universe vs weighting: strategy − SPI = (EW − SPI) + (strategy − EW) in CAGR. The first term mixes
+the reconstructed universe and equal weighting (small-cap tilt) against the official cap-weighted
+index; only the second isolates the weighting rule (Overview and Risk & Return tabs).
+
+Model selection: the default configuration was fixed before looking at the results and nothing is
+selected afterwards. Choosing the best of the 72 configurations from these results would be data
+snooping and would need its own validation period (nested walk-forward); the site says so.
+
 Robustness: Sharpe heatmaps window × frequency and covariance × cap on a common sample; cost
 scenarios 0–100 bp; regimes fixed in advance in `config.py`; stationary bootstrap (paired months,
 mean block 6, 2,000 draws, fixed seed) of Sharpe differences against the SPI and EW with Holm
@@ -179,7 +198,7 @@ adjustment.
 
 | Suite | Command | Covers |
 |---|---|---|
-| Python | `python -m pytest pipeline/tests` | projection on the capped simplex (vs bisection); GMV, TP, MDP, ERC, IVP against closed forms; optimality under caps; singular covariances; Ledoit-Wolf against a loop transcription of the paper; Bayes-Stein; **no look-ahead** (perturbing future returns and listings leaves every earlier weight and return unchanged, all strategies, all schedules); weights only earn later returns; complete-window eligibility; drift and turnover by hand; costs on traded value only; delisting liquidation and reinvestment; common sample; monkeys reproducibility, seeds, independence from later data; cleaning rules; SARON compounding; JKP conversion; privacy checks; numpy OLS vs statsmodels |
+| Python | `python -m pytest pipeline/tests` | projection on the capped simplex (vs bisection); GMV, TP, MDP, ERC, IVP against closed forms; optimality under caps; singular covariances; Ledoit-Wolf against a loop transcription of the paper; Bayes-Stein; **no look-ahead** on the panel (perturbing future returns and listings leaves every earlier weight and return unchanged, all strategies, all schedules) and **end to end from raw daily CSV files** (`test_end_to_end.py`: different prices and delistings after a cut-off, a month-end spike that reverts only in one copy, an Ince-Porter reversal only in one copy — cleaning, eligibility, estimation windows and weights up to the cut-off are identical); capped ERC KKT conditions; weights only earn later returns; complete-window eligibility; drift and turnover by hand; costs on traded value only; delisting liquidation and reinvestment; common sample; monkeys reproducibility, seeds, independence from later data; cleaning rules; SARON compounding; JKP conversion; privacy checks; numpy OLS vs statsmodels |
 | TypeScript | `npm test` | statistics vs numpy/scipy (CAGR, volatility, VaR, CVaR, skewness, kurtosis, Sharpe, Sortino, IR, TE, beta…); drawdowns within [−100 %, 0 %]; compounding; costs; bootstrap reproducibility; Holm; factor sample rule and unavailable factors; attribution identity; **regression engine vs statsmodels** (5 models × OLS/HC3/HAC, coefficients, SE, t, p, CI, R², diagnostics) on synthetic data and on the published strategy returns |
 
 `python -m pipeline.statsref` writes `tests/reference/statsmodels_factor.json`. With
@@ -220,7 +239,9 @@ after it ends, the stock data stop at the last extraction, while SNB and JKP ser
 
 ## 8. Limitations
 
-* Survivorship bias before 2017 (delistings missing), and no delisting returns beyond the last price.
+* Strong survivorship bias before 2017 (delistings missing), reduced but not eliminated afterwards;
+  no delisting returns beyond the last price.
+* The level-break correction (3 stocks) is an ex post cleaning hypothesis.
 * Reconstructed universe, not SPI constituents; no free-float caps (no replicated CW, no size screen).
 * Month-end execution at closing prices; proportional costs, no market impact.
 * JKP factors approximate Fama-French factors; they end in December 2025.

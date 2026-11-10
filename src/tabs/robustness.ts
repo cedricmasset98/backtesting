@@ -19,6 +19,7 @@ export async function renderRobustness(c: Ctx, load: (key: string) => Promise<St
   c.root.innerHTML = `
   <section class="card"><h2>Robustness</h2>
     <p class="muted small">${escapeHtml(basisLabel(c))}. No strategy is selected from these tables: they show how much the conclusions depend on choices made before looking at the results.</p>
+    <p class="warn">Picking the best cell of a heatmap and reporting its Sharpe ratio as out-of-sample evidence is data snooping: the ${m.grid.windows.length * m.grid.freqs.length * m.grid.cov.length * Object.keys(m.grid.caps).length} configurations are evaluated on the same months. A configuration chosen this way would have to be validated on a later, untouched period (nested walk-forward); the bootstrap and Holm corrections below only cover the strategies of one configuration.</p>
     <div class="tools"><label>Strategy for the heatmaps <select id="rb-strat">${options.map((id) => `<option value="${id}" ${id === target ? 'selected' : ''}>${SHORT[id]}</option>`).join('')}</select></label></div></section>
   <div class="grid2">
     <section class="card"><h3>Sharpe ratio — window × rebalancing (${SHORT[target]})</h3><div id="ch-hw" class="chart short"></div>${exportsHtml('ch-hw', 'heatmap_window_frequency')}<p class="note" id="hw-note">Loading the other configurations…</p></section>

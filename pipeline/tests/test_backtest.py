@@ -26,9 +26,11 @@ class TestNoLookAhead(unittest.TestCase):
         p2 = synthetic_panel(seed=1)
         rng = np.random.default_rng(99)
         noise = rng.normal(0, 0.2, p2.r_est.iloc[cut + 1:].shape)
-        p2.r_est.iloc[cut + 1:] = p2.r_est.iloc[cut + 1:] + noise
-        p2.r_val.iloc[cut + 1:] = p2.r_est.iloc[cut + 1:]
+        p2.r_gen.iloc[cut + 1:] = p2.r_gen.iloc[cut + 1:] + noise
+        p2.r_last.iloc[cut + 1:] = p2.r_gen.iloc[cut + 1:]
+        p2.r_val.iloc[cut + 1:] = p2.r_gen.iloc[cut + 1:]
         p2.alive.iloc[cut + 1:, :5] = False  # future delistings
+        p2.observed.iloc[cut + 1:, :5] = False
         _, run2 = run_all(p2)
         self.assertEqual(run1.t0, run2.t0)
         for k in range(run1.t0, cut + 1):
@@ -67,8 +69,8 @@ class TestDriftTurnoverCosts(unittest.TestCase):
         codes = ["A", "B"]
         r = pd.DataFrame([[0, 0], [0.10, 0.0], [0.0, 0.10], [0.05, -0.05], [0, 0], [0, 0]], index=months, columns=codes, dtype=float)
         price = (1 + r).cumprod()
-        self.panel = D.Panel(months, codes, {"A": "A", "B": "B"}, price, r, r.copy(), price.notna(),
-                             pd.DataFrame(True, index=months, columns=codes), {c: months[-1] for c in codes}, 0)
+        self.panel = D.Panel(months, codes, {"A": "A", "B": "B"}, price, price.copy(), r, r.copy(), r.copy(), price.notna(),
+                             pd.DataFrame(True, index=months, columns=codes), price.notna(), {c: months[-1] for c in codes}, 0)
         self.run = B.WeightsRun(1, "lw", 1.0, 0)
         for k in range(6):
             self.run.decisions[k] = B.Decision(np.array([0, 1]), {"EW": np.array([0.5, 0.5])}, np.eye(2), np.zeros(2), 0, None, 0, False, False)
@@ -102,7 +104,7 @@ class TestDriftTurnoverCosts(unittest.TestCase):
 
 
 class TestDelisting(unittest.TestCase):
-    def test_delisted_stock_held_until_last_price_then_reinvested(self):
+    def test_delisted_stock_written_off_after_an_observed_month_without_price(self):
         p = synthetic_panel(n_stocks=35, seed=4, delist={"S001": "2006-06"})
         p.r_val.loc[p.months > pd.Period("2006-06", "M"), "S001"] = np.nan
         elig, run = run_all(p, cap="25")
@@ -111,8 +113,21 @@ class TestDelisting(unittest.TestCase):
         sim = B.simulate(run, "EW", "A", p)
         k = p.months.get_loc(pd.Period("2006-06", "M"))
         self.assertGreaterEqual(sim.exits, 1)
-        self.assertGreater(sim.turnover[k + 2], 0)  # reinvestment of the proceeds, outside a rebalancing date
+        # July: still held (its absence is only known at the end of July), earns 0 %
+        self.assertAlmostEqual(sim.turnover[k + 1], 0.0, places=12)
+        # end of July: written off and reinvested → turnover in the August holding month
+        self.assertGreater(sim.turnover[k + 2], 0)
         self.assertTrue(np.isfinite(sim.gross[k + 1:]).all())
+
+    def test_suspension_is_not_known_in_advance(self):
+        # S002 has no price in Mar 2006 but trades again later: the rule cannot use that
+        p = synthetic_panel(n_stocks=35, seed=4)
+        m = pd.Period("2006-03", "M")
+        p.observed.loc[m, "S002"] = False
+        p.r_val.loc[m, "S002"] = 0.0
+        _, run = run_all(p, cap="25")
+        sim = B.simulate(run, "EW", "A", p)
+        self.assertGreaterEqual(sim.exits, 1)
 
 
 class TestCommonSample(unittest.TestCase):

@@ -19,6 +19,16 @@ export function renderComposition(c: Ctx, hold: HoldingsFile): void {
   const reb = new Set(dec.months.filter((m) => s.freq === 'M' || Number(m.slice(5)) % (s.freq === 'Q' ? 3 : 12) === 0));
   const dIdx = dec.months.map((m, i) => [m, i] as const).filter(([m]) => reb.has(m) && m >= view.period[0] && m <= view.period[1]);
 
+  // ERC under the cap: how often the cap binds and how far the result is from equal contributions
+  const ercRows = dIdx.filter(([, i]) => dec.erc_capped && dec.exante.ERC.eff_rc[i] !== null);
+  const bind = ercRows.filter(([, i]) => (dec.erc_capped?.[i] ?? 0) > 0);
+  const fallback = ercRows.filter(([, i]) => (dec.erc_capped?.[i] ?? 0) < 0).map(([m]) => m);
+  const ratio = ercRows.map(([, i]) => (dec.exante.ERC.eff_rc[i] as number) / dec.n_eligible[i]).sort((a, b) => a - b);
+  const med = ratio.length ? ratio[Math.floor(ratio.length / 2)] : NaN;
+  const ercNote = ercRows.length
+    ? `<p class="note"><strong>ERC and the ${strat.cap_value * 100} % cap.</strong> The cap binds at ${bind.length} of ${ercRows.length} rebalancing decisions in the period${bind.length ? ` (median ${bind.map(([, i]) => dec.erc_capped![i]).sort((a, b) => a - b)[Math.floor(bind.length / 2)]} stock(s) at the cap)` : ''}. Capped stocks keep a smaller risk contribution, all the others have exactly equal contributions. Effective number of risk contributions / N: median ${pct(med, 1)} (100 % = unconstrained ERC).${fallback.length ? ` At ${fallback.length} decision(s) (${fallback.join(', ')}) the constrained problem could not be solved numerically (near-singular covariance) and the ERC weights were capped proportionally instead.` : ''}</p>`
+    : '';
+
   c.root.innerHTML = `
   <section class="card"><h2>Allocation &amp; Portfolio Composition</h2>
     <p class="muted small">${escapeHtml(configLabel(c))}</p>
@@ -32,7 +42,8 @@ export function renderComposition(c: Ctx, hold: HoldingsFile): void {
     <section class="card"><h3>Turnover at each trade date</h3><div id="ch-to" class="chart short"></div>${exportsHtml('ch-to', 'turnover')}
       <p class="note">Σ|w<sub>target</sub> − w<sub>before</sub>| (buys + sells, fraction of wealth). Small values between rebalancing dates come from reinvesting the proceeds of delisted stocks.</p></section>
     <section class="card"><h3>Ex ante risk concentration at rebalancing dates</h3><div id="ch-rc" class="chart short"></div>${exportsHtml('ch-rc', 'risk_concentration')}
-      <p class="note">Effective number of risk contributions 1/Σ RC<sub>i</sub>², RC<sub>i</sub> = w<sub>i</sub>(Σw)<sub>i</sub>/w'Σw (with the covariance estimated at the date). ERC equalises the contributions by construction.</p></section>
+      <p class="note">Effective number of risk contributions 1/Σ RC<sub>i</sub>², RC<sub>i</sub> = w<sub>i</sub>(Σw)<sub>i</sub>/w'Σw (with the covariance estimated at the date). Without a binding cap ERC equalises the contributions, so this number equals N.</p>
+      ${ercNote}</section>
   </div>
   <section class="card">
     <header class="card-head"><div><h3>Largest positions and risk contributions</h3><p class="muted small">Snapshot of the decision at the end of ${snap.month} (${snap.n_eligible} eligible stocks); weights are the targets set at that date.</p></div>

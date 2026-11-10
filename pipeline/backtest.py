@@ -23,6 +23,7 @@ import pandas as pd
 from . import config as C
 from . import estimators as E
 from . import optimizers as O
+from . import data as D
 from .data import Panel
 
 OPTIMISED = ["EW", "GMV", "ERC", "TP", "MDP", "IVP", "TP_SAMPLE"]
@@ -40,6 +41,7 @@ class Decision:
     tp_fallback: bool
     tp_sample_fallback: bool
     exante: dict[str, dict] = field(default_factory=dict)  # strategy -> ex ante statistics
+    erc_capped: int = 0                                     # ERC weights held at the cap
 
 
 @dataclass
@@ -67,7 +69,6 @@ def compute_weights(panel: Panel, elig: pd.DataFrame, window: int, cov: str, cap
     run = WeightsRun(window, cov, cap, months.get_loc(start) if start is not None else len(months))
     if start is None:
         return run
-    R = panel.r_est.to_numpy()
     E_ = elig.to_numpy()
     rf_f = rf.reindex(months).ffill()
     prev: dict[str, tuple[np.ndarray, np.ndarray]] = {}
@@ -75,7 +76,7 @@ def compute_weights(panel: Panel, elig: pd.DataFrame, window: int, cov: str, cap
         idx = np.flatnonzero(E_[k])
         if idx.size < C.MIN_UNIVERSE:
             continue
-        x = R[k - window + 1:k + 1][:, idx]
+        x = D.estimation_window(panel, k, window)[:, idx]
         if np.isnan(x).any():  # cannot happen: eligibility requires a complete window
             raise AssertionError(f"Missing return in the estimation window at {months[k]}.")
         sigma, delta = E.covariance(x, cov)
@@ -98,10 +99,11 @@ def compute_weights(panel: Panel, elig: pd.DataFrame, window: int, cov: str, cap
         w = {
             "EW": O.apply_cap(np.full(n, 1.0 / n), cap),
             "IVP": O.apply_cap(O.inverse_volatility(sigma), cap),
-            "ERC": O.apply_cap(O.equal_risk_contribution(sigma), cap),
+            "ERC": (erc := O.erc_capped(sigma, cap))[0],
             "GMV": O.gmv(sigma, cap, warm("GMV")),
             "MDP": O.most_diversified(sigma, cap, warm("MDP")),
         }
+        erc_capped = erc[1]
         w["TP"], fb = O.tangency(sigma, mu_bs, rf_k, cap, warm("TP"))
         w["TP_SAMPLE"], fbs = O.tangency(sigma, mu_s, rf_k, cap, warm("TP_SAMPLE"))
         for name, v in w.items():
@@ -109,7 +111,7 @@ def compute_weights(panel: Panel, elig: pd.DataFrame, window: int, cov: str, cap
             w[name] = v / v.sum()
             prev[name] = (idx, w[name])
         keep = keep_sigma_months is None or months[k] in keep_sigma_months
-        dec = Decision(idx, w, sigma, mu_bs, rf_k, delta, phi, fb, fbs)
+        dec = Decision(idx, w, sigma, mu_bs, rf_k, delta, phi, fb, fbs, erc_capped=erc_capped)
         dec.exante = {name: ex_ante(dec, name) for name in w}
         if not keep:
             dec.sigma, dec.mu_bs = np.empty((0, 0)), np.empty(0)
@@ -140,9 +142,11 @@ def simulate(run: WeightsRun, strategy: str, freq: str, panel: Panel) -> SimResu
     * At a scheduled rebalancing date the portfolio is traded to the target
       weights; turnover = Σ|w_target − w_before| (one-way, fraction of wealth).
     * Between rebalancing dates weights drift: w_i ← w_i (1 + r_i)/(1 + r_p).
-    * A held stock whose listing ends is liquidated at its last observed price
-      (zero return afterwards); the proceeds are reinvested pro rata in the other
-      holdings at the next month-end and the trade counts in turnover.
+    * A holding without any price during a whole month (delisting or suspension:
+      indistinguishable at that date) earns 0 % in that month, is then written
+      off at its last price and the proceeds are reinvested pro rata in the other
+      holdings at that month-end; the trade counts in turnover. Only information
+      available at the month-end is used (no knowledge of the final listing date).
     * Transaction costs are not applied here: net returns are computed from
       gross returns and turnover (costs.py / the browser), which is exact for
       proportional costs.
@@ -151,7 +155,7 @@ def simulate(run: WeightsRun, strategy: str, freq: str, panel: Panel) -> SimResu
     T = len(months)
     N = len(panel.codes)
     rv = panel.r_val.reindex(columns=panel.codes).to_numpy()
-    last_idx = np.array([months.get_loc(panel.last_month[c]) for c in panel.codes])
+    observed = panel.observed.reindex(columns=panel.codes).to_numpy()
     sched = rebalance_months(months, freq)
     out = SimResult(*(np.full(T, np.nan) for _ in range(2)), np.zeros(T, bool), *(np.full(T, np.nan) for _ in range(4)), 0)
     post: np.ndarray | None = None
@@ -163,10 +167,16 @@ def simulate(run: WeightsRun, strategy: str, freq: str, panel: Panel) -> SimResu
             target[dec.idx] = dec.weights[strategy]
         elif post is not None:
             target = post.copy()
-            gone = (last_idx < k + 1) & (target > 0)  # listing ended: last price at or before month k
+            # point in time: a holding without any price during month k (delisted or
+            # suspended, which cannot be told apart at k) is written off at its
+            # last price and the proceeds are reinvested
+            gone = ~observed[k] & (target > 0)
             if gone.any():
                 out.exits += int(gone.sum())
                 target[gone] = 0.0
+            if target.sum() <= 0:  # every holding written off: cash until the next rebalancing date
+                post = None
+                continue
             target /= target.sum()
         else:
             continue

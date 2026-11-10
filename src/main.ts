@@ -56,7 +56,7 @@ function buildControls(): void {
       <label>Start <input type="month" id="c-start" /></label>
       <label>End <input type="month" id="c-end" /></label>
       <div class="seg" role="group" aria-label="Sample">
-        <button type="button" id="c-ctrl" title="Start when delisted stocks are covered by the data">Bias-controlled</button>
+        <button type="button" id="c-ctrl" title="Start in the first year whose data contain delisted stocks (survivorship bias reduced, not eliminated)">Reduced bias</button>
         <button type="button" id="c-full" title="Whole available history, including the years affected by survivorship bias">Full history</button>
       </div>
       <span class="muted small" id="c-avail"></span>
@@ -160,7 +160,7 @@ async function render(): Promise<void> {
     banner.hidden = !(controlled && view.period[0] < controlled);
     banner.innerHTML = banner.hidden
       ? ''
-      : `<strong>Full history — survivorship bias until ${controlled}.</strong> Before that date the data contain almost no delisted companies (bankruptcies, takeovers): the universe is made of survivors, which flatters the stock-based strategies and the monkeys relative to the SPI. The shaded area on the charts marks these years. <button type="button" id="banner-ctrl">Back to the bias-controlled sample</button>`;
+      : `<strong>Full history — strong survivorship bias until ${controlled}.</strong> Before that date the data contain almost no delisted companies (bankruptcies, takeovers): the universe is made of survivors, which flatters the stock-based strategies and the monkeys relative to the SPI. The shaded area on the charts marks these years. <button type="button" id="banner-ctrl">Back to the reduced-bias sample</button>`;
     if (!banner.hidden) $('banner-ctrl').onclick = () => setState({ start: controlled!, end: manifest.last_complete_month });
     switch (state.tab) {
       case 'overview':

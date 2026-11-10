@@ -45,6 +45,7 @@ export interface Manifest {
     delisted_in_panel: number;
     cleaning: { invalid_rows: number; spike_rows: number; level_break_rows: number; by_code: Record<string, Record<string, number>> };
     reversal_months_flagged: number;
+    spike_months_affecting_last_return?: number;
     max_listed_at_once: number;
     months: string[];
     eligible: Record<string, number[]>;
@@ -101,6 +102,7 @@ export interface StrategiesFile {
     rf: (number | null)[];
     tp_fallback: string[];
     tp_sample_fallback: string[];
+    erc_capped?: number[];
     exante: Record<StratId, ExAnte>;
   };
 }

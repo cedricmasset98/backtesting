@@ -5,9 +5,9 @@ import { cumulativeCosts, mean, sd, type PerfStats } from '../engine/metrics.ts'
 import { monthEnd, STRATS } from '../model.ts';
 import { baseLayout, draw, exportsHtml, LABEL, SHORT, wireExports } from '../ui/charts.ts';
 import { biasShade } from './performance.ts';
-import { basisLabel, configLabel, periodLabel, stats, type Ctx } from '../ui/context.ts';
+import { basisLabel, configLabel, decomposition, periodLabel, stats, type Ctx } from '../ui/context.ts';
 import { download, tableCsv, toCsv } from '../ui/export.ts';
-import { escapeHtml, num, pct } from '../ui/format.ts';
+import { escapeHtml, num, pct, signedPct } from '../ui/format.ts';
 
 type Row = { label: string; unit: string; get: (st: PerfStats, id: SeriesId) => number; fmt: (x: number) => string; help?: string };
 
@@ -76,6 +76,14 @@ export function renderRisk(c: Ctx): void {
         { label: 'Information ratio', unit: 'annualised', get: (s) => s.infoRatio, fmt: (x) => num(x, 2) },
         { label: 'Tracking error', unit: '% p.a.', get: (s) => s.trackingError, fmt: (x) => pct(x) },
         { label: 'Market beta (on SPI excess return)', unit: '', get: (s) => s.beta, fmt: (x) => num(x, 2) },
+      ],
+    },
+    {
+      title: 'Difference with the SPI (CAGR): universe vs weighting',
+      rows: [
+        { label: 'Total: strategy − SPI', unit: '% p.a.', get: (_, id) => decomposition(c, id)?.total ?? NaN, fmt: (x) => signedPct(x) },
+        { label: 'Universe effect: EW − SPI', unit: '% p.a.', get: (_, id) => decomposition(c, id)?.universe ?? NaN, fmt: (x) => signedPct(x), help: 'Reconstructed liquid universe with equal weights versus the official cap-weighted SPI (includes the small-cap tilt of equal weighting)' },
+        { label: 'Weighting effect: strategy − EW', unit: '% p.a.', get: (_, id) => decomposition(c, id)?.weighting ?? NaN, fmt: (x) => signedPct(x), help: 'Pure effect of the weighting rule: same universe, same months, same costs model' },
       ],
     },
     {

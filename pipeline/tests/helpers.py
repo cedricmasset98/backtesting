@@ -29,11 +29,12 @@ def synthetic_panel(n_stocks: int = 40, n_months: int = 120, seed: int = 0, star
         last[c] = pd.Period(m, "M")
     for c in codes:
         price.loc[(price.index < first[c]) | (price.index > last[c]), c] = np.nan
-    r_est = (price / price.shift(1) - 1).where(price.notna() & price.shift(1).notna())
-    r_val = r_est.copy()
+    r_gen = (price / price.shift(1) - 1).where(price.notna() & price.shift(1).notna())
+    r_val = r_gen.copy()
     alive = price.notna()
     liquid = pd.DataFrame(True, index=months, columns=codes)
-    return Panel(months, codes, {c: f"Stock {c}" for c in codes}, price, r_est, r_val, alive, liquid, last, 0)
+    return Panel(months, codes, {c: f"Stock {c}" for c in codes}, price, price.copy(), r_gen, r_gen.copy(), r_val, alive,
+                 liquid, price.notna(), last, 0)
 
 
 def random_cov(n: int, seed: int = 0, factor: float = 0.6) -> np.ndarray:

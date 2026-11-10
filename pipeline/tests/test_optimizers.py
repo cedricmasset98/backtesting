@@ -150,3 +150,29 @@ class TestFrontier(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCappedErc(unittest.TestCase):
+    def test_audit_example(self):
+        # five independent assets, volatilities 2 % and 4 % (×4), cap 25 %
+        s = np.array([0.02, 0.04, 0.04, 0.04, 0.04])
+        w, n = O.erc_capped(np.diag(s**2), 0.25)
+        np.testing.assert_allclose(w, [0.25, 0.1875, 0.1875, 0.1875, 0.1875], atol=1e-10)
+        self.assertEqual(n, 1)
+
+    def test_kkt_conditions(self):
+        for seed in range(4):
+            sig = random_cov(50, seed)
+            for cap in (0.03, 0.025, 0.022):
+                w, n = O.erc_capped(sig, cap)
+                self.assertTrue(feasible(w, cap))
+                rc = w * (sig @ w)
+                free = w < cap - 1e-10
+                lam = rc[free].mean()
+                np.testing.assert_allclose(rc[free], lam, rtol=1e-8)          # equal among free assets
+                self.assertTrue((rc[~free] <= lam * (1 + 1e-8)).all())       # capped assets contribute less
+                self.assertEqual(n, int((~free).sum()))
+
+    def test_no_binding_cap_is_plain_erc(self):
+        sig = random_cov(30, 9)
+        np.testing.assert_allclose(O.erc_capped(sig, 0.5)[0], O.equal_risk_contribution(sig), atol=1e-12)

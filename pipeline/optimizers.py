@@ -17,7 +17,7 @@ from . import config as C
 
 
 # Solver statistics, reported in the build manifest.
-STATS = {"qp_solves": 0, "qp_failures": 0, "ratio_not_converged": 0}
+STATS = {"qp_solves": 0, "qp_failures": 0, "ratio_not_converged": 0, "erc_fallback": 0}
 
 
 # --------------------------------------------------------------- projections
@@ -361,6 +361,134 @@ def equal_risk_contribution(sigma: np.ndarray, tol: float = 1e-12, max_iter: int
             t *= 0.5
         y = y + t * d
     return y / y.sum()
+
+
+def _erc_fixed(sigma: np.ndarray, fixed: np.ndarray, cap: float, w_start: np.ndarray) -> tuple[np.ndarray, bool]:
+    """Weights with w_i = cap on `fixed` and equal risk contributions
+    w_i (Σw)_i = λ on the other assets, Σw = 1.
+
+    For λ0 > 0, z(λ0) = argmin_z ½ w'Σw − λ0 Σ_free ln z_i (w = z on free assets,
+    cap on fixed ones) is a strictly convex problem whose first-order condition
+    is z_i (Σw)_i = λ0 for every free asset (damped Newton, warm-started). The
+    budget Σ z(λ0) increases with λ0, and λ0 is found by safeguarded regula
+    falsi (Illinois) on ln Σ z(e^ν) − ln(1 − cap·#fixed). Returns (w, converged)."""
+    S = sigma / np.mean(np.diag(sigma))
+    free = ~fixed
+    budget = 1.0 - cap * fixed.sum()
+    Sff = S[np.ix_(free, free)]
+    base = S[np.ix_(free, fixed)] @ np.full(int(fixed.sum()), cap) if fixed.any() else np.zeros(int(free.sum()))
+
+    def inner(lam: float, z: np.ndarray) -> np.ndarray:
+        for _ in range(200):
+            g = Sff @ z + base - lam / z
+            if np.abs(g * z).max() < 1e-13 * lam:
+                break
+            d = -np.linalg.solve(Sff + np.diag(lam / z**2), g)
+            t = 1.0
+            while np.any(z + t * d <= 0):
+                t *= 0.5
+            # the objective is convex and self-concordant: a damped step suffices
+            dec = float(np.sqrt(max(-(g @ d), 0.0)))
+            if dec > 0.25 and t == 1.0:
+                t = 1.0 / (1.0 + dec)
+            z = z + t * d
+        return z
+
+    z = np.maximum(np.asarray(w_start, float)[free], 1e-12)
+    z *= budget / z.sum()
+    w = np.zeros(sigma.shape[0])
+    w[fixed] = cap
+    w[free] = z
+    nu = math.log(max(float(np.mean(z * (S @ w)[free])), 1e-300))
+
+    def f(nu_: float, z_: np.ndarray) -> tuple[float, np.ndarray]:
+        lam_ = math.exp(min(max(nu_, -700.0), 700.0))
+        with np.errstate(all="ignore"):
+            zz = inner(lam_, z_)
+        if not np.isfinite(zz).all() or zz.min() <= 0:
+            raise FloatingPointError("inner problem failed")
+        return math.log(zz.sum()) - math.log(budget), zz
+
+    try:
+        return _regula_falsi(f, nu, z, w, free)
+    except (FloatingPointError, np.linalg.LinAlgError, ZeroDivisionError, OverflowError):
+        return w / w.sum(), False
+
+
+def _regula_falsi(f, nu: float, z: np.ndarray, w: np.ndarray, free: np.ndarray) -> tuple[np.ndarray, bool]:
+    """Root of the increasing function f(ν) (Illinois method), see _erc_fixed."""
+    fa, z = f(nu, z)
+    a, zb = nu, z
+    b, step = nu, 1.0
+    fb = fa
+    while fa * fb > 0:  # bracket the root
+        b = b - step if fa > 0 else b + step
+        fb, zb = f(b, zb)
+        step *= 2
+        if step > 1e4:
+            return w, False
+    side = 0
+    za = z
+    for _ in range(200):
+        c = b - fb * (b - a) / (fb - fa)
+        fc, zc = f(c, za if abs(c - a) < abs(c - b) else zb)
+        if abs(fc) < 1e-13:
+            w[free] = zc
+            return w / w.sum(), True
+        if fc * fb < 0:
+            a, fa, za = b, fb, zb
+            side = 0
+        else:
+            if side == 1:
+                fa /= 2
+            side = 1
+        b, fb, zb = c, fc, zc
+    w[free] = zb
+    return w / w.sum(), False
+
+
+def erc_capped(sigma: np.ndarray, cap: float) -> tuple[np.ndarray, int]:
+    """ERC under a weight cap (risk budgeting with bounds).
+
+    Without a binding cap this is the ERC portfolio. Otherwise the solution
+    satisfies the KKT conditions of the bounded problem: assets at the cap have
+    a risk contribution not larger than the common contribution λ of all the
+    other assets, which are exactly equal (Richard & Roncalli, 2019, use the
+    same characterisation). Active set: assets above the cap are fixed at the
+    cap, assets at the cap whose contribution exceeds λ are released, until both
+    conditions hold. Returns (weights, number of capped assets); −1 signals a
+    numerical failure, in which case the proportionally capped ERC is returned."""
+    n = sigma.shape[0]
+    w = equal_risk_contribution(sigma)
+    if cap >= 1 or w.max() <= cap + 1e-12:
+        return w, 0
+    w_erc = w.copy()
+    fixed = w > cap
+    ok = True
+    for _ in range(n):
+        w, ok = _erc_fixed(sigma, fixed, cap, w)
+        if not ok:
+            break
+        rc = w * (sigma @ w)
+        lam = float(np.mean(rc[~fixed]))
+        over = ~fixed & (w > cap + 1e-12)
+        if over.any():
+            fixed |= over
+            continue
+        excess = np.where(fixed, rc - lam, -np.inf)
+        j = int(np.argmax(excess))
+        if fixed.any() and excess[j] > 1e-10 * lam:
+            fixed[j] = False
+            continue
+        break
+    if not ok or not np.isfinite(w).all():
+        # numerical failure (seen only with singular sample covariances): fall back to the
+        # proportional cap of the ERC weights, counted and reported in the manifest
+        STATS["erc_fallback"] += 1
+        w = apply_cap(w_erc, cap)
+        return w, -1
+    w = np.clip(w, 0.0, cap)
+    return w / w.sum(), int(fixed.sum())
 
 
 def risk_contributions(w: np.ndarray, sigma: np.ndarray) -> np.ndarray:

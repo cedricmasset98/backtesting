@@ -136,6 +136,7 @@ def run_config(job: tuple[int, str, str]) -> dict:
         "rf": [r(run.decisions[k].rf, 10) for k in dec_months],
         "tp_fallback": [str(months[k]) for k in dec_months if run.decisions[k].tp_fallback],
         "tp_sample_fallback": [str(months[k]) for k in dec_months if run.decisions[k].tp_sample_fallback],
+        "erc_capped": [run.decisions[k].erc_capped for k in dec_months],  # −1: numerical fallback (proportional cap)
         "exante": exante,
     }
     # top holdings and frontier snapshots (December decisions and the last one)
@@ -314,9 +315,12 @@ def main(argv=None) -> None:
             "duplicates_same_isin": G["dups"], "duplicates_cross": G["cross"], "dropped_duplicates": G["dropped"],
             "stocks_in_panel": len(panel.codes), "delisted_in_panel": int(sum(sec.set_index("code").loc[c, "delisted"] for c in panel.codes)),
             "cleaning": {"invalid_rows": G["log"].invalid_rows, "spike_rows": G["log"].spike_rows,
-                         "level_break_rows": G["log"].break_rows, "by_code": G["log"].by_code},
+                         "level_break_rows": G["log"].break_rows, "by_code": G["log"].by_code,
+                         "ex_post_corrections": ["placeholder prices (row-local test)", "history before an unreverted level break"],
+                         "point_in_time_filters": ["one-day spikes (known once reverted)", "Ince-Porter monthly reversals (known one month later)"]},
             "reversal_months_flagged": panel.flagged_reversals,
             "max_listed_at_once": listed,
+            "spike_months_affecting_last_return": int(((panel.price_raw - panel.price).abs() > 1e-12).to_numpy().sum()),
             "months": [str(m) for m in panel.months],
             "eligible": elig_counts,
             "listed": [int(v) for v in panel.alive.sum(axis=1)],

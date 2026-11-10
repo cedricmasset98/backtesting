@@ -1,8 +1,8 @@
 /** Overview & Configuration: summary, warnings and methodology at a glance. */
 
 import { baseLayout, draw, LABEL } from '../ui/charts.ts';
-import { basisLabel, configLabel, periodLabel, stats, type Ctx } from '../ui/context.ts';
-import { escapeHtml, num, pct } from '../ui/format.ts';
+import { basisLabel, configLabel, decomposition, periodLabel, stats, type Ctx } from '../ui/context.ts';
+import { escapeHtml, num, pct, signedPct } from '../ui/format.ts';
 import { monthEnd } from '../model.ts';
 
 export function renderOverview(c: Ctx): void {
@@ -11,7 +11,7 @@ export function renderOverview(c: Ctx): void {
   const jkpLast = Object.values(m.factors).map((f) => f.last).sort()[0];
   const warnings: string[] = [];
   if (controlled && view.period[0] < controlled) {
-    warnings.push(`<strong>Survivorship bias before ${controlled}.</strong> The data contain delisted stocks only from ${controlled.slice(0, 4)} onwards (${Object.entries(m.survivorship.delistings_by_year).map(([y, n]) => `${y}: ${n}`).join(', ')} delistings by year of last price). Before that, the universe consists mostly of companies that survived, which flatters every stock-based strategy relative to the SPI.`);
+    warnings.push(`<strong>Strong survivorship bias before ${controlled}.</strong> The data contain delisted stocks only from ${controlled.slice(0, 4)} onwards (${Object.entries(m.survivorship.delistings_by_year).map(([y, n]) => `${y}: ${n}`).join(', ')} delistings by year of last price). Before that, the universe consists mostly of companies that survived, which flatters every stock-based strategy relative to the SPI.`);
   }
   if (view.period[1] > jkpLast) warnings.push(`The Swiss JKP factors end in ${jkpLast}: factor regressions stop there.`);
   if (s.start < view.available[0] || s.end > view.available[1]) warnings.push(`The requested period was restricted to the months available for this configuration (${view.available[0]} – ${view.available[1]}).`);
@@ -38,13 +38,16 @@ export function renderOverview(c: Ctx): void {
   ${warnings.length ? `<section class="card warnbox">${warnings.map((w) => `<p>${w}</p>`).join('')}</section>` : ''}
   <section class="card">
     <h3>Summary</h3>
-    <div class="table-wrap"><table class="data"><thead><tr><th>Portfolio</th><th>CAGR</th><th>Volatility</th><th>Sharpe</th><th>Max drawdown</th><th>Final value of 100 CHF</th></tr></thead><tbody>
+    <div class="table-wrap"><table class="data"><thead><tr><th rowspan="2">Portfolio</th><th rowspan="2">CAGR</th><th rowspan="2">Volatility</th><th rowspan="2">Sharpe</th><th rowspan="2">Max drawdown</th><th rowspan="2">Final value of 100 CHF</th><th colspan="3">CAGR difference with the SPI</th></tr>
+      <tr><th>Total</th><th title="EW − SPI: universe and equal-weighting effect">Universe (EW − SPI)</th><th title="Strategy − EW: effect of the weighting rule within the same universe">Weighting (− EW)</th></tr></thead><tbody>
     ${ids.map((id) => {
       const st = stats(c, id);
-      return `<tr><th scope="row"><span class="dot" style="background:${t.color[id]}"></span>${LABEL[id]}</th><td>${pct(st.cagr)}</td><td>${pct(st.vol)}</td><td>${num(st.sharpe, 2)}</td><td>${pct(st.maxDD, 1)}</td><td>${num(100 * (1 + st.cumulative), 1)}</td></tr>`;
+      const d = decomposition(c, id);
+      return `<tr><th scope="row"><span class="dot" style="background:${t.color[id]}"></span>${LABEL[id]}</th><td>${pct(st.cagr)}</td><td>${pct(st.vol)}</td><td>${num(st.sharpe, 2)}</td><td>${pct(st.maxDD, 1)}</td><td>${num(100 * (1 + st.cumulative), 1)}</td>${d ? `<td>${signedPct(d.total)}</td><td>${signedPct(d.universe)}</td><td>${signedPct(d.weighting)}</td>` : '<td>—</td><td>—</td><td>—</td>'}</tr>`;
     }).join('')}
     </tbody></table></div>
-    <p class="note">Rows are in a fixed order; nothing is ranked. Differences of this size over ${Math.round(view.months.length / 12)} years are often within sampling error: see the bootstrap tests in the Robustness tab.</p>
+    <p class="note">Rows are in a fixed order; nothing is ranked. Differences of this size over ${Math.round(view.months.length / 12)} years are often within sampling error: see the bootstrap tests in the Robustness tab.
+    <strong>Two effects.</strong> The strategies are built on the reconstructed universe of liquid Swiss stocks, the SPI on its official constituents with capitalisation weights. The difference with the SPI therefore splits exactly into EW − SPI (the universe and its equal weighting, i.e. a small-cap tilt) and strategy − EW (the weighting rule alone, same universe, same months). Only the second measures portfolio construction.</p>
   </section>
   <div class="grid2">
     <section class="card"><h3>Eligible universe over time</h3><div id="ch-univ" class="chart short"></div>
@@ -53,6 +56,7 @@ export function renderOverview(c: Ctx): void {
       <ul class="plain">
         <li><strong>Walk-forward.</strong> At each month-end t the pipeline uses only data up to t to choose the weights; they earn the returns from t+1 onward. Weights drift between rebalancing dates.</li>
         <li><strong>What is computed where.</strong> Optimisations run in the private pipeline for every combination of the grid (${m.grid.windows.join('/')} months × ${m.grid.freqs.join('/')} × ${m.grid.cov.join('/')} × caps ${Object.keys(m.grid.caps).join('/')}%). Your browser applies transaction costs to the published turnover — exact for proportional costs — and restricts the evaluation period without re-optimising.</li>
+        <li><strong>No configuration was selected after the fact.</strong> The default (${m.default.window} months, ${({ M: 'monthly', Q: 'quarterly', A: 'annual' } as const)[m.default.freq]}, ${m.default.cov === 'lw' ? 'Ledoit-Wolf' : 'sample'}, cap ${m.default.cap} %) was fixed before looking at the results. Browsing the ${m.grid.windows.length * m.grid.freqs.length * m.grid.cov.length * Object.keys(m.grid.caps).length} configurations to find the best Sharpe ratio and presenting it as an out-of-sample result would be data snooping: that choice would need its own validation period (nested walk-forward).</li>
         <li><strong>Other settings</strong> (another window, cap or universe rule) need a run of the private pipeline: edit <code>pipeline/config.py</code> and run the workflow. Nothing here is simulated from invented data.</li>
         <li><strong>Benchmark.</strong> CW is the official SPI total return index (no costs). Individual free-float capitalisations are not available, so the cap-weighted portfolio is not replicated.</li>
         <li><strong>Data licence.</strong> Individual prices stay private; the site publishes portfolio-level results only.</li>
@@ -64,5 +68,5 @@ export function renderOverview(c: Ctx): void {
   draw(document.getElementById('ch-univ'), [
     { x, y: m.universe.listed, name: 'Listed and traded', type: 'scatter', mode: 'lines', line: { color: t.muted, width: 1.5 } },
     ...m.grid.windows.map((w, i) => ({ x, y: m.universe.eligible[String(w)], name: `Eligible, ${w}m`, type: 'scatter', mode: 'lines', line: { color: t.color[(['EW', 'GMV', 'ERC', 'TP'] as const)[i % 4]], width: w === s.window ? 2.5 : 1, dash: w === s.window ? 'solid' : 'dot' } })),
-  ], baseLayout(t, { hovermode: 'x unified', xaxis: { type: 'date' }, yaxis: { title: { text: 'Stocks' } }, shapes: controlled ? [{ type: 'line', x0: monthEnd(controlled), x1: monthEnd(controlled), yref: 'paper', y0: 0, y1: 1, line: { color: t.muted, dash: 'dot', width: 1 } }] : [], annotations: controlled ? [{ x: monthEnd(controlled), y: 1, yref: 'paper', text: 'delistings covered', showarrow: false, xanchor: 'left', font: { size: 10, color: t.muted } }] : [] }));
+  ], baseLayout(t, { hovermode: 'x unified', xaxis: { type: 'date' }, yaxis: { title: { text: 'Stocks' } }, shapes: controlled ? [{ type: 'line', x0: monthEnd(controlled), x1: monthEnd(controlled), yref: 'paper', y0: 0, y1: 1, line: { color: t.muted, dash: 'dot', width: 1 } }] : [], annotations: controlled ? [{ x: monthEnd(controlled), y: 1, yref: 'paper', text: 'delistings in the data', showarrow: false, xanchor: 'left', font: { size: 10, color: t.muted } }] : [] }));
 }

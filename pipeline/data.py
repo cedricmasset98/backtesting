@@ -88,10 +88,20 @@ def _spike_mask(adj: np.ndarray) -> np.ndarray:
 
 
 def load_daily(md: Path, codes: list[str], log: CleanLog) -> dict[str, pd.DataFrame]:
-    """Daily rows (date, close, adj, volume) after removing invalid prices,
-    spikes that revert, and the history before an unreverted level break (a
-    one-day move of ×LEVEL_BREAK upwards, or downwards when the earlier segment
-    is the shorter one: placeholder prices). Rows are removed, never filled."""
+    """Daily rows (date, close, adj, volume, spike).
+
+    Two kinds of treatment, kept apart on purpose:
+    * ex post corrections of vendor errors, applied once to the whole history
+      and documented as a cleaning hypothesis: placeholder prices (row-local
+      test, no look-ahead) and the history before an unreverted level break of
+      ×LEVEL_BREAK (upwards, or downwards when the earlier segment is the
+      shorter one), which by construction uses later rows;
+    * point-in-time filters: one-day spikes that revert within
+      SPIKE_REVERT_DAYS rows are only *flagged* (column `spike`). A spike is
+      known once its reversal is observed, so monthly_panel uses the flag for
+      months whose information set contains the reversal and keeps the raw
+      price otherwise (see Panel.price_raw / r_last).
+    Rows are removed or flagged, never filled."""
     out = {}
     for code in codes:
         f = md / "data/eodhd/SW/eod" / f"{code}.SW.csv.gz"
@@ -105,9 +115,6 @@ def load_daily(md: Path, codes: list[str], log: CleanLog) -> dict[str, pd.DataFr
         ok = (d["close"] > C.PRICE_MIN) & (d["close"] < C.PRICE_MAX) & (d["adjusted_close"] > 0) & d["adjusted_close"].notna()
         n_bad = int((~ok).sum())
         d = d[ok]
-        spikes = _spike_mask(d["adjusted_close"].to_numpy(float)) if len(d) > 2 else np.zeros(len(d), bool)
-        n_spk = int(spikes.sum())
-        d = d[~spikes]
         n_brk = 0
         if len(d) > 2:
             adj = d["adjusted_close"].to_numpy(float)
@@ -118,13 +125,16 @@ def load_daily(md: Path, codes: list[str], log: CleanLog) -> dict[str, pd.DataFr
                     n_brk += earlier
                     d = d.iloc[i + 1:]
                     break
+        d = d.copy()
+        d["spike"] = _spike_mask(d["adjusted_close"].to_numpy(float)) if len(d) > 2 else np.zeros(len(d), bool)
+        n_spk = int(d["spike"].sum())
         if n_bad or n_spk or n_brk:
             log.by_code[code] = {"invalid_rows": n_bad, "spike_rows": n_spk, "level_break_rows": n_brk}
         log.break_rows += n_brk
         log.invalid_rows += n_bad
         log.spike_rows += n_spk
         if len(d):
-            out[code] = d[["date", "close", "adjusted_close", "volume"]].rename(columns={"adjusted_close": "adj"}).reset_index(drop=True)
+            out[code] = d[["date", "close", "adjusted_close", "volume", "spike"]].rename(columns={"adjusted_close": "adj"}).reset_index(drop=True)
     return out
 
 
@@ -193,13 +203,20 @@ class Panel:
     months: pd.PeriodIndex            # all calendar months covered
     codes: list[str]
     names: dict[str, str]
-    price: pd.DataFrame               # month-end adjusted close observed in the month (NaN if none)
-    r_est: pd.DataFrame               # genuine monthly returns usable for estimation
+    price: pd.DataFrame               # month-end adjusted close, spikes removed (ex post view)
+    price_raw: pd.DataFrame           # month-end adjusted close as seen at that month-end (spike not yet revealed)
+    r_gen: pd.DataFrame               # genuine monthly returns from `price` (both month-ends observed)
+    r_last: pd.DataFrame              # return of month t as known at the end of t: price_raw[t] / price[t-1] - 1
     r_val: pd.DataFrame               # valuation returns during the listing life (stale months = 0)
     alive: pd.DataFrame               # bool: traded close to month-end
     liquid: pd.DataFrame              # bool: liquidity screens at month-end
-    last_month: dict[str, pd.Period]  # last month with a valid price (end of life)
-    flagged_reversals: int
+    observed: pd.DataFrame            # bool: at least one price in the month (known at month-end)
+    last_month: dict[str, pd.Period]  # last month with a valid price (end of life, used for valuation only)
+    flagged_reversals: int            # ex post count of Ince-Porter reversals (information)
+
+    @property
+    def r_est(self) -> pd.DataFrame:  # backwards-compatible name
+        return self.r_gen
 
 
 def monthly_panel(daily: dict[str, pd.DataFrame], names: dict[str, str], last_complete: pd.Period) -> Panel:
@@ -207,21 +224,25 @@ def monthly_panel(daily: dict[str, pd.DataFrame], names: dict[str, str], last_co
     first = min(d["date"].min() for d in daily.values()).to_period("M")
     months = pd.period_range(first, last_complete, freq="M")
     month_end = months.to_timestamp(how="end").normalize()
-    price, alive, liquid, rval = {}, {}, {}, {}
+    price, praw, alive, liquid, rval = {}, {}, {}, {}, {}
     last_month = {}
     for c in codes:
         d = daily[c]
         d = d[d["date"].dt.to_period("M") <= last_complete]
         if d.empty:
             continue
+        if "spike" not in d:
+            d = d.assign(spike=False)
         per = d["date"].dt.to_period("M")
         g = d.groupby(per)
-        p = g["adj"].last().reindex(months)
+        p_raw = g["adj"].last().reindex(months)
+        clean = d[~d["spike"].to_numpy(bool)]
+        p = clean.groupby(clean["date"].dt.to_period("M"))["adj"].last().reindex(months)
         last_date = g["date"].max().reindex(months)
         traded = d[d["volume"] > 0]
         last_trade = traded.groupby(traded["date"].dt.to_period("M"))["date"].max().reindex(months)
         gap_ok = (pd.Series(month_end, index=months) - last_trade).dt.days <= C.STALE_MAX_DAYS
-        alive[c] = p.notna() & last_date.notna() & gap_ok.fillna(False)
+        alive[c] = p_raw.notna() & last_date.notna() & gap_ok.fillna(False)
         # liquidity: trailing LIQ_LOOKBACK_DAYS rows ending at the last row of each month
         dd = pd.DataFrame({
             "per": per.to_numpy(),
@@ -232,25 +253,53 @@ def monthly_panel(daily: dict[str, pd.DataFrame], names: dict[str, str], last_co
         ok = (lastrow["med"] >= C.LIQ_MIN_MEDIAN_VALUE) & (lastrow["zsh"] <= C.LIQ_MAX_ZERO_VOLUME)
         liquid[c] = ok.reindex(months).fillna(False).astype(bool)
         price[c] = p
+        praw[c] = p_raw
         lastm = p.last_valid_index()
         firstm = p.first_valid_index()
+        if lastm is None:
+            continue
         last_month[c] = lastm
         pff = p.copy()
         pff.loc[firstm:lastm] = pff.loc[firstm:lastm].ffill()
         rv = pff / pff.shift(1) - 1
         rv.loc[:firstm] = np.nan
         rval[c] = rv
-    price = pd.DataFrame(price)
-    r_est = price / price.shift(1) - 1
-    # a return is genuine only if both month-ends were observed (no stale filling)
-    r_est = r_est.where(price.notna() & price.shift(1).notna())
-    # Ince & Porter (2006) reversal flag: both months unusable for estimation
-    nxt = r_est.shift(-1)
-    rev = (r_est > C.REVERSAL_UP) & ((1 + r_est) * (1 + nxt) - 1 < C.REVERSAL_TWO_MONTH)
-    flagged = int(rev.to_numpy().sum())
-    r_est = r_est.mask(rev | rev.shift(1, fill_value=False))
-    return Panel(months, list(price.columns), names, price, r_est, pd.DataFrame(rval), pd.DataFrame(alive).fillna(False).astype(bool),
-                 pd.DataFrame(liquid).reindex(months).fillna(False).astype(bool), last_month, flagged)
+    price = pd.DataFrame(price)[list(rval)]
+    praw = pd.DataFrame(praw)[list(rval)]
+    r_gen = (price / price.shift(1) - 1).where(price.notna() & price.shift(1).notna())
+    r_last = (praw / price.shift(1) - 1).where(praw.notna() & price.shift(1).notna())
+    nxt = r_gen.shift(-1)
+    rev = (r_gen > C.REVERSAL_UP) & ((1 + r_gen) * (1 + nxt) - 1 < C.REVERSAL_TWO_MONTH)
+    return Panel(months, list(price.columns), names, price, praw, r_gen, r_last, pd.DataFrame(rval),
+                 pd.DataFrame(alive)[list(rval)].fillna(False).astype(bool),
+                 pd.DataFrame(liquid).reindex(months)[list(rval)].fillna(False).astype(bool),
+                 praw.notna(), last_month, int(rev.to_numpy().sum()))
+
+
+def estimation_window(panel: Panel, k: int, window: int) -> np.ndarray | None:
+    """Monthly returns usable at the decision taken at the end of month k
+    (window × stocks), built only from information available at that date.
+
+    * months k−window+1 … k−1: genuine returns from spike-cleaned prices (every
+      spike in those months has reverted by the end of month k, because a
+      reversal takes at most SPIKE_REVERT_DAYS trading days);
+    * month k: price_raw[k] / price[k−1] − 1, i.e. the month-end price as it was
+      published at k, even if a later reversal will reveal a vendor error;
+    * Ince & Porter (2006) reversal flag, evaluated causally: r_s is unusable
+      when r_s > REVERSAL_UP and (1 + r_s)(1 + r_{s+1}) − 1 < REVERSAL_TWO_MONTH
+      with s + 1 ≤ k; both months are then set missing.
+    Missing values are NaN (never filled). None if the history is too short."""
+    if k - window < 0:
+        return None
+    R = panel.r_gen.to_numpy()
+    full = np.vstack([R[k - window:k], panel.r_last.to_numpy()[k][None, :]])  # rows: months k−window … k
+    with np.errstate(invalid="ignore"):
+        rev = (full[:-1] > C.REVERSAL_UP) & ((1 + full[:-1]) * (1 + full[1:]) - 1 < C.REVERSAL_TWO_MONTH)
+    bad = np.zeros_like(full, dtype=bool)
+    bad[:-1] |= rev
+    bad[1:] |= rev
+    full = np.where(bad, np.nan, full)
+    return full[1:]
 
 
 def eligibility(panel: Panel, window: int) -> pd.DataFrame:
@@ -258,12 +307,17 @@ def eligibility(panel: Panel, window: int) -> pd.DataFrame:
 
     Uses only information available at the end of month t: listed and traded
     near month-end, liquidity screens on trailing data, and a complete window of
-    `window` genuine monthly returns ending at t (no missing value allowed, no
-    filling). A stock that enters the market therefore becomes eligible once its
-    history covers the whole window.
+    `window` monthly returns ending at t as returned by estimation_window (no
+    missing value allowed, no filling). A stock that enters the market therefore
+    becomes eligible once its history covers the whole window.
     """
-    complete = panel.r_est.notna().astype(int).rolling(window, min_periods=window).sum() == window
-    return panel.alive & panel.liquid & complete
+    T, N = len(panel.months), len(panel.codes)
+    complete = np.zeros((T, N), dtype=bool)
+    for k in range(window, T):
+        W = estimation_window(panel, k, window)
+        complete[k] = ~np.isnan(W).any(axis=0)
+    out = panel.alive.to_numpy() & panel.liquid.to_numpy() & complete
+    return pd.DataFrame(out, index=panel.months, columns=panel.codes)
 
 
 # ------------------------------------------------------------- market series

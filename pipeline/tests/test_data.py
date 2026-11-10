@@ -34,13 +34,14 @@ class TestCleaning(unittest.TestCase):
             write_stock(root, "CCC", frame(brk))
             log = D.CleanLog()
             out = D.load_daily(root, ["AAA", "BBB", "CCC"], log)
-            self.assertEqual(len(out["AAA"]), 28)
+            self.assertEqual(len(out["AAA"]), 30)  # spikes are flagged, not removed
+            self.assertEqual(int(out["AAA"]["spike"].sum()), 2)
             self.assertEqual(log.spike_rows, 2)
             self.assertEqual(len(out["BBB"]), 30)
             self.assertEqual(log.invalid_rows, 5)
             self.assertEqual(len(out["CCC"]), 30)
             self.assertEqual(log.break_rows, 10)
-            self.assertLess(out["AAA"]["adj"].max(), 12)
+            self.assertLess(out["AAA"].loc[~out["AAA"]["spike"], "adj"].max(), 12)
 
     def test_missing_months_not_filled_for_estimation(self):
         d = frame(list(np.linspace(10, 12, 130)), start="2020-01-01")
@@ -48,7 +49,7 @@ class TestCleaning(unittest.TestCase):
         d = d[~d["date"].dt.to_period("M").isin([pd.Period("2020-03", "M")])]  # suspension in March
         d = d.rename(columns={"adjusted_close": "adj"})[["date", "close", "adj", "volume"]]
         panel = D.monthly_panel({"X": d}, {"X": "X"}, pd.Period("2020-06", "M"))
-        r = panel.r_est["X"]
+        r = panel.r_gen["X"]
         self.assertTrue(np.isnan(r[pd.Period("2020-03", "M")]))
         self.assertTrue(np.isnan(r[pd.Period("2020-04", "M")]))
         v = panel.r_val["X"]

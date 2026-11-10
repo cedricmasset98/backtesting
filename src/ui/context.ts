@@ -37,6 +37,19 @@ export function stats(c: Ctx, id: SeriesId, basis: 'r' | 'gross' | 'net' = 'r'):
   return st;
 }
 
+/**
+ * CAGR difference with the SPI, split exactly into a universe effect (EW − SPI:
+ * reconstructed universe with equal weights versus the official cap-weighted
+ * index) and a weighting effect (strategy − EW, same universe and months).
+ */
+export function decomposition(c: Ctx, id: SeriesId): { total: number; universe: number; weighting: number } | null {
+  if (id === 'CW' || !c.view.series.has('EW')) return null;
+  const s = stats(c, id).cagr;
+  const ew = stats(c, 'EW').cagr;
+  const spi = stats(c, 'CW').cagr;
+  return { total: s - spi, universe: ew - spi, weighting: s - ew };
+}
+
 export function periodLabel(c: Ctx): string {
   const [a, b] = c.view.period;
   return `${a} – ${b} (${c.view.months.length} months)`;

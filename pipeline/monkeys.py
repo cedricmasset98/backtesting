@@ -36,7 +36,7 @@ def simulate_monkeys(panel: Panel, elig: pd.DataFrame, t0: int, freq: str, k: in
     months = panel.months
     T, N = len(months), len(panel.codes)
     rv = panel.r_val.reindex(columns=panel.codes).to_numpy()
-    last_idx = np.array([months.get_loc(panel.last_month[c]) for c in panel.codes])
+    observed = panel.observed.reindex(columns=panel.codes).to_numpy()
     E_ = elig.reindex(columns=panel.codes).to_numpy()
     sched = rebalance_months(months, freq)
     gross = np.full((n_monkeys, T), np.nan)
@@ -51,9 +51,10 @@ def simulate_monkeys(panel: Panel, elig: pd.DataFrame, t0: int, freq: str, k: in
                 target[j, pick] = 1.0 / pick.size
         else:
             target = post.copy()
-            gone = last_idx < t + 1
+            gone = ~observed[t]
             target[:, gone] = 0.0
-            target /= target.sum(axis=1, keepdims=True)
+            tot = target.sum(axis=1, keepdims=True)
+            target = np.divide(target, tot, out=np.zeros_like(target), where=tot > 0)  # all holdings gone: cash
         turn[:, t + 1] = 0.0 if post is None else np.abs(target - post).sum(axis=1)
         r = np.where(np.isnan(rv[t + 1]), 0.0, rv[t + 1])
         rp = target @ r
