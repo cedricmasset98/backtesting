@@ -171,3 +171,4 @@ button.primary { background: var(--accent); color: #fff; border-color: var(--acc
 a.button { display: inline-block; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); text-decoration: none; white-space: nowrap; }
 a.button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
 [data-theme="dark"] a.button.primary { color: #0e1115; }
+.controls label.check { flex-direction: row; align-items: center; gap: 6px; align-self: flex-end; padding-bottom: 6px; }

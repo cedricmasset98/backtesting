@@ -182,18 +182,24 @@ export function perfStats(r: number[], rf: number[], b: number[]): PerfStats {
  * 1 + r_net = (1 − c·TO)(1 + r_gross). Exact: weights and turnover do not
  * depend on the cost level. Same formula as pipeline/backtest.py:net_returns.
  */
-export function netReturns(gross: number[], turnover: (number | null)[], bps: number): number[] {
+/**
+ * Net returns with proportional costs: at a rebalancing date wealth is reduced
+ * by c·TO_t (fixed cost of `bps` per unit traded) plus the spread cost S_t of the
+ * same trades (Σ_i |Δw_i|·s_i/2, from the pipeline), then earns the gross return:
+ * 1 + r_net = (1 − c·TO_t − S_t)(1 + r_gross).
+ */
+export function netReturns(gross: number[], turnover: (number | null)[], bps: number, spread?: (number | null)[]): number[] {
   const c = bps / 1e4;
-  return gross.map((g, i) => (1 - c * (turnover[i] ?? 0)) * (1 + g) - 1);
+  return gross.map((g, i) => (1 - c * (turnover[i] ?? 0) - (spread?.[i] ?? 0)) * (1 + g) - 1);
 }
 
-/** Costs paid, in CHF per 100 CHF invested at the start: Σ c·TO_t·V_{t−1}^{net}. */
-export function cumulativeCosts(gross: number[], turnover: (number | null)[], bps: number): number {
+/** Costs paid, in CHF per 100 CHF invested at the start: Σ (c·TO_t + S_t)·V_{t−1}^{net}. */
+export function cumulativeCosts(gross: number[], turnover: (number | null)[], bps: number, spread?: (number | null)[]): number {
   const c = bps / 1e4;
   let v = 100;
   let paid = 0;
   gross.forEach((g, i) => {
-    const cost = c * (turnover[i] ?? 0) * v;
+    const cost = (c * (turnover[i] ?? 0) + (spread?.[i] ?? 0)) * v;
     paid += cost;
     v = (v - cost) * (1 + g);
   });

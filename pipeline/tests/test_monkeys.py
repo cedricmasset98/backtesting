@@ -43,12 +43,23 @@ class TestMonkeys(unittest.TestCase):
         np.testing.assert_array_equal(before, M.draw(2, 7, m, np.flatnonzero(e2.iloc[40].to_numpy()), 10))
 
     def test_equal_weights_at_rebalancing(self):
-        g, _ = M.simulate_monkeys(self.p, self.elig, self.t0, "M", 10, 1, n_monkeys=5)
+        g, _, _ = M.simulate_monkeys(self.p, self.elig, self.t0, "M", 10, 1, n_monkeys=5)
         k = 30
         idx = np.flatnonzero(self.elig.iloc[k].to_numpy())
         pick = M.draw(1, 0, self.p.months[k], idx, 10)
         r = self.p.r_val.to_numpy()[k + 1, pick]
         self.assertAlmostEqual(g[0, k + 1], r.mean(), places=12)
+
+    def test_keep_mode_replaces_only_ineligible(self):
+        g, tu, _ = M.simulate_monkeys(self.p, self.elig, self.t0, "Q", 10, 1, n_monkeys=10, mode="keep")
+        _, tr, _ = M.simulate_monkeys(self.p, self.elig, self.t0, "Q", 10, 1, n_monkeys=10, mode="redraw")
+        self.assertLess(np.nanmean(tu), np.nanmean(tr))  # far less trading than redrawing
+        held = np.array([0, 3, 5, 9])
+        idx = np.array([0, 1, 2, 3, 4, 6, 7, 8])  # 5 and 9 left the universe
+        new = M.replace(1, 0, self.p.months[20], held, idx, 4)
+        self.assertEqual(new.size, 4)
+        self.assertTrue({0, 3} <= set(new) and not ({5, 9} & set(new)))
+        self.assertTrue(set(new) <= set(idx))
 
 
 if __name__ == "__main__":

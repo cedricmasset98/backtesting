@@ -1,6 +1,6 @@
 /** Fetches the derived JSON files (relative URLs: works under any GitHub Pages sub-path). */
 
-import type { FrontierFile, HoldingsFile, Manifest, Market, MonkeysFile, StrategiesFile, Freq, CovMethod } from './types.ts';
+import type { FrontierFile, HoldingsFile, Manifest, Market, MonkeysFile, MonkeyMode, StrategiesFile, Freq, CovMethod } from './types.ts';
 
 const cache = new Map<string, Promise<unknown>>();
 
@@ -24,4 +24,5 @@ export const loadMarket = () => get<Market>('market.json');
 export const loadStrategies = (key: string) => get<StrategiesFile>(`strategies/${key}.json`);
 export const loadHoldings = (key: string) => get<HoldingsFile>(`holdings/${key}.json`);
 export const loadFrontier = (key: string) => get<FrontierFile>(`frontier/${key}.json`);
-export const loadMonkeys = (window: number, freq: Freq, k: number, seed: number) => get<MonkeysFile>(`monkeys/L${window}_${freq}_k${k}_s${seed}.json`);
+export const monkeysKey = (window: number, freq: Freq, k: number, seed: number, mode: MonkeyMode) => `L${window}_${freq}_k${k}_s${seed}_${mode}`;
+export const loadMonkeys = (window: number, freq: Freq, k: number, seed: number, mode: MonkeyMode) => get<MonkeysFile>(`monkeys/${monkeysKey(window, freq, k, seed, mode)}.json`);

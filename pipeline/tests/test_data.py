@@ -43,6 +43,20 @@ class TestCleaning(unittest.TestCase):
             self.assertEqual(log.break_rows, 10)
             self.assertLess(out["AAA"].loc[~out["AAA"]["spike"], "adj"].max(), 12)
 
+    def test_half_spreads_by_liquidity_group(self):
+        months = pd.period_range("2020-01", periods=3, freq="M")
+        codes = [f"S{i}" for i in range(40)]
+        mdv = pd.DataFrame([np.arange(1, 41) * 1e5] * 3, index=months, columns=codes)
+        spread = np.where(np.arange(40) < 20, 0.02, 0.002)  # illiquid half: 2 %, liquid half: 0.2 %
+        ar2 = pd.DataFrame([spread**2] * 3, index=months, columns=codes)
+        mdv.iloc[1, 39] = np.nan  # no liquidity measure: least liquid group
+        hs, groups = D.half_spreads(mdv, ar2)
+        self.assertAlmostEqual(hs.iloc[0, 0], 0.01)
+        self.assertAlmostEqual(hs.iloc[0, 39], 0.001)
+        self.assertAlmostEqual(hs.iloc[1, 39], 0.01)
+        self.assertEqual(len(groups), 10)
+        self.assertGreater(groups[0]["median_spread"], groups[-1]["median_spread"])
+
     def test_missing_months_not_filled_for_estimation(self):
         d = frame(list(np.linspace(10, 12, 130)), start="2020-01-01")
         d["date"] = pd.to_datetime(d["date"])

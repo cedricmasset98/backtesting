@@ -37,7 +37,7 @@ export function renderComposition(c: Ctx, hold: HoldingsFile): void {
   <div class="grid2">
     <section class="card"><h3>Effective number of positions (1/Σw²)</h3><div id="ch-effn" class="chart short"></div>${exportsHtml('ch-effn', 'effective_n')}</section>
     <section class="card"><h3>Number of positions</h3><div id="ch-npos" class="chart short"></div>${exportsHtml('ch-npos', 'n_positions')}</section>
-    <section class="card"><h3>Largest weight</h3><div id="ch-maxw" class="chart short"></div>${exportsHtml('ch-maxw', 'max_weight')}</section>
+    <section class="card"><h3>Largest weight</h3><div id="ch-maxw" class="chart short"></div>${exportsHtml('ch-maxw', 'max_weight')}<p class="note">Weights held at the start of each month. The cap applies to the target weights at each rebalancing date; between two rebalancing dates a stock that outperforms can drift above it.</p></section>
     <section class="card"><h3>Weight of the ten largest positions</h3><div id="ch-top10" class="chart short"></div>${exportsHtml('ch-top10', 'top10_weight')}</section>
     <section class="card"><h3>Turnover at each trade date</h3><div id="ch-to" class="chart short"></div>${exportsHtml('ch-to', 'turnover')}
       <p class="note">Σ|w<sub>target</sub> − w<sub>before</sub>| (buys + sells, fraction of wealth). Small values between rebalancing dates come from reinvesting the proceeds of delisted stocks.</p></section>

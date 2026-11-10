@@ -3,8 +3,9 @@
  *
  *   R_p − R_f = α + β_M MKT + β_S SMB + β_H HML + β_R RMW + β_C CMA + β_W MOM + ε
  *
- * MKT = SPI total return − Swiss r_f; SMB, HML, RMW, CMA, MOM = Swiss JKP
- * long-short factors (market_equity, be_me, ope_be, at_gr1, ret_12_1) in CHF.
+ * MKT = SPI total return − Swiss r_f; SMB, HML, RMW, CMA, MOM, BAB = Swiss JKP
+ * long-short factors (market_equity, be_me, ope_be, at_gr1, ret_12_1,
+ * betabab_1260d: low beta − high beta) in CHF.
  * Sample rule: the months of the selected period where the portfolio return,
  * r_f and every factor of the model are available (no filling). The same rule
  * is used by pipeline/statsref.py for the statsmodels reference.
@@ -12,16 +13,17 @@
 
 import { ols, type CovType, type OLSResult } from './ols.ts';
 
-export type FactorId = 'MKT' | 'SMB' | 'HML' | 'RMW' | 'CMA' | 'MOM';
-export type ModelId = 'CAPM' | 'FF3' | 'CARHART' | 'FF5' | 'FF5MOM';
+export type FactorId = 'MKT' | 'SMB' | 'HML' | 'RMW' | 'CMA' | 'MOM' | 'BAB';
+export type ModelId = 'CAPM' | 'FF3' | 'CARHART' | 'FF5' | 'FF5MOM' | 'FF5MOMBAB';
 
-export const FACTORS: FactorId[] = ['MKT', 'SMB', 'HML', 'RMW', 'CMA', 'MOM'];
+export const FACTORS: FactorId[] = ['MKT', 'SMB', 'HML', 'RMW', 'CMA', 'MOM', 'BAB'];
 export const MODELS: Record<ModelId, { label: string; factors: FactorId[] }> = {
   CAPM: { label: 'CAPM', factors: ['MKT'] },
   FF3: { label: 'FF3', factors: ['MKT', 'SMB', 'HML'] },
   CARHART: { label: 'Carhart-4', factors: ['MKT', 'SMB', 'HML', 'MOM'] },
   FF5: { label: 'FF5', factors: ['MKT', 'SMB', 'HML', 'RMW', 'CMA'] },
   FF5MOM: { label: 'FF5+MOM', factors: ['MKT', 'SMB', 'HML', 'RMW', 'CMA', 'MOM'] },
+  FF5MOMBAB: { label: 'FF5+MOM+BAB', factors: ['MKT', 'SMB', 'HML', 'RMW', 'CMA', 'MOM', 'BAB'] },
 };
 export const MODEL_IDS = Object.keys(MODELS) as ModelId[];
 
@@ -49,7 +51,7 @@ export function buildSample(months: string[], r: (number | null)[], data: Factor
     if (i === undefined || v === null || !Number.isFinite(v)) return;
     const rf = data.rf[i];
     if (rf === null) return;
-    const row = f.map((k) => data.factors[k][i]);
+    const row = f.map((k) => data.factors[k]?.[i] ?? null); // a factor absent from the file is missing
     if (row.some((z) => z === null || !Number.isFinite(z))) return;
     out.months.push(m);
     out.y.push(v - rf);

@@ -90,6 +90,16 @@ class TestDriftTurnoverCosts(unittest.TestCase):
         self.assertAlmostEqual(sim.turnover[2], abs(0.5 - w_a) + abs(0.5 - (1 - w_a)))
         self.assertEqual(sim.turnover[1], 0.0)  # the initial purchase is not charged
 
+    def test_spread_cost_of_the_trades(self):
+        import dataclasses
+        hs = pd.DataFrame([[0.002, 0.010]] * 6, index=self.panel.months, columns=self.panel.codes)
+        panel = dataclasses.replace(self.panel, half_spread=hs)
+        sim = B.simulate(self.run, "EW", "M", panel)
+        w_a = 0.5 * 1.1 / 1.05
+        self.assertEqual(sim.spread[1], 0.0)
+        self.assertAlmostEqual(sim.spread[2], abs(0.5 - w_a) * 0.002 + abs(0.5 - (1 - w_a)) * 0.010)
+        self.assertTrue(np.all(B.simulate(self.run, "EW", "M", self.panel).spread[1:] == 0))  # no estimate: no cost
+
     def test_costs_on_traded_amount_only(self):
         sim = B.simulate(self.run, "EW", "M", self.panel)
         g, to = sim.gross[1:], sim.turnover[1:]

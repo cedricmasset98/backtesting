@@ -3,7 +3,7 @@
 Interactive comparison of eight portfolio strategies on Swiss equities — Market-Cap Weighted
 (SPI total return), Equally-Weighted, Global Minimum Variance, Equal Risk Contribution,
 Tangency, Most Diversified, Inverse Volatility and 100 random "Malkiel's monkeys" —
-backtested walk-forward in CHF, with performance, risk, factor (CAPM → FF5+MOM),
+backtested walk-forward in CHF, with performance, risk, factor (CAPM → FF5+MOM+BAB),
 efficient-frontier, composition and robustness analyses.
 
 Site: **https://cedricmasset.ch/backtesting/** (project page of the account whose user site uses the
@@ -61,13 +61,17 @@ so they cannot run in the browser. The pipeline precomputes the full grid
 | Rebalancing | monthly, quarterly (calendar quarter-ends), annual (December) |
 | Covariance | sample + ridge ("standard"), Ledoit-Wolf shrinkage |
 | Weight cap | 25 %, 10 %, 5 % |
-| Monkeys | K = 10, 30, 50 stocks × seeds 1, 2, 3 |
+| Monkeys | K = 10, 30, 50 stocks × seeds 1, 2, 3 × holdings kept / redrawn |
 
-i.e. 24 weight runs × 3 schedules and 108 monkey sets. In the browser:
+i.e. 24 weight runs × 3 schedules and 216 monkey sets. In the browser:
 
-* **transaction costs** (any value) are applied to the published turnover:
-  1 + r<sub>net</sub> = (1 − c·TO<sub>t</sub>)(1 + r<sub>gross</sub>). This is exact because the weights,
-  hence the turnover, do not depend on c;
+* **transaction costs** are applied to the published trades: a fixed cost c (any value, default
+  10 bp: commission and stamp duty) on the turnover and, optionally (on by default), half the
+  estimated bid-ask spread of each traded stock, S<sub>t</sub> = Σ|Δw<sub>i</sub>|·s<sub>i,t</sub>/2, computed in the pipeline:
+  1 + r<sub>net</sub> = (1 − c·TO<sub>t</sub> − S<sub>t</sub>)(1 + r<sub>gross</sub>). This is exact because the weights,
+  hence the trades, do not depend on the costs. The spread s<sub>i,t</sub> is the Abdi & Ranaldo (2017)
+  close-high-low estimator over the last 63 trading days, smoothed as the median of ten groups of
+  median daily traded value at each month-end (point in time);
 * **the evaluation period** is a slice of the precomputed walk-forward series: portfolios keep the
   weights chosen at their own decision dates, nothing is re-optimised with later information;
 * **anything else** (another window, cap, universe rule, estimator) requires a pipeline run: add
@@ -108,7 +112,7 @@ the static design costs nothing to host and keeps the data in one private place.
    returns use the corrected prices (a vendor spike is not a traded price), so the valuation of a
    month can be revised a few days later; decisions never are.
 4. **Eligibility at month-end t.** Price in month t and a trade within 7 days of month-end; median
-   daily traded value over the last 63 trading days ≥ CHF 50,000 and ≤ 50 % days without volume;
+   daily traded value over the last 63 trading days ≥ CHF 500,000 and ≤ 50 % days without volume;
    a complete window of monthly returns (no gap, no filling). At least 30 eligible stocks per decision.
 5. **Suspensions and delistings (point in time).** A month without any price inside the listing
    life is valued at the last price (0 % return) but is not an estimation return. A holding without
@@ -147,7 +151,7 @@ All portfolios are long-only, fully invested, unlevered and capped (25 / 10 / 5 
 | TP (sample μ) | same with sample means | sensitivity to the expected-return estimator |
 | MDP | max w'σ/√(w'Σw) | same solver as TP (Choueifaty & Coignard 2008) |
 | IVP | w<sub>i</sub> ∝ 1/σ<sub>i</sub> | |
-| Monkeys | K random stocks, equal weights | re-drawn at each rebalancing date from the same eligible universe; seed (seed, monkey, yyyymm) |
+| Monkeys | K random stocks, equal weights | kept (default): stocks kept while eligible, only those leaving the universe are replaced, equal weights restored at each rebalancing date; redrawn: K new stocks at each rebalancing date; seed (seed, monkey, yyyymm) |
 
 Caps: constraint inside the optimisation for GMV/TP/MDP/ERC; excess redistributed pro rata
 ("water filling") for EW/IVP.
@@ -174,13 +178,18 @@ quantiles); skewness and excess kurtosis from biased moments; Sharpe = mean(R �
 Sortino = 12·mean(R − R<sub>f</sub>)/DD; Calmar = CAGR/|MDD|; IR = 12·mean(R − R<sub>SPI</sub>)/TE,
 TE = sd(R − R<sub>SPI</sub>)·√12; beta on SPI excess returns. Relative performance = 100·V/V<sup>SPI</sup>.
 
-Factor models (monthly): CAPM, FF3, Carhart-4, FF5, FF5+MOM on R<sub>p</sub> − R<sub>f</sub>, with MKT = SPI − R<sub>f</sub>
-and the Swiss JKP factors. Sample: months where the portfolio, R<sub>f</sub> and all factors of the model exist
+Factor models (monthly): CAPM, FF3, Carhart-4, FF5, FF5+MOM, FF5+MOM+BAB on R<sub>p</sub> − R<sub>f</sub>, with MKT = SPI − R<sub>f</sub>
+and the Swiss JKP factors (BAB: `betabab_1260d`, low beta − high beta). Sample: months where the portfolio, R<sub>f</sub> and all factors of the model exist
 (JKP currently ends in December 2025). Inference: classical OLS (t, n − k df), HC3, or Newey-West
 (Bartlett, L = ⌊4(n/100)<sup>2/9</sup>⌋, no small-sample correction) with normal inference. Each coefficient
 is shown with its t (or z) statistic below it, stars at 10/5/1 %, standard errors, p-values, 95 % CI,
 R², adjusted R², n. Diagnostics: Jarque-Bera, Breusch-Pagan (Koenker), Ljung-Box, Q-Q plot.
 Attribution: mean(R − R<sub>f</sub>) = α̂ + Σβ̂<sub>k</sub>·mean(F<sub>k</sub>) (exact in-sample).
+
+Stale prices (results report): thinly traded stocks make portfolio returns autocorrelated and bias
+beta and volatility down. The report gives the first-order autocorrelation, the Lo (2002) Sharpe
+ratio and volatility (AR(1) autocorrelations) and the Dimson (1979) summed beta and alpha with one
+lag of the market (`src/engine/stale.ts`).
 
 Universe vs weighting: strategy − SPI = (EW − SPI) + (strategy − EW) in CAGR. The first term mixes
 the reconstructed universe and equal weighting (small-cap tilt) against the official cap-weighted
@@ -193,7 +202,8 @@ snooping and would need its own validation period (nested walk-forward); the sit
 Robustness: Sharpe heatmaps window × frequency and covariance × cap on a common sample; cost
 scenarios 0–100 bp; regimes fixed in advance in `config.py`; stationary bootstrap (paired months,
 mean block 6, 2,000 draws, fixed seed) of Sharpe differences against the SPI and EW with Holm
-adjustment.
+adjustment; the 95 % interval inverts the same two-sided test (ΔSR ± the 95th percentile of
+|ΔSR* − ΔSR|), so it excludes 0 exactly when p < 5 %.
 
 ## 5. Tests
 
@@ -244,7 +254,8 @@ after it ends, the stock data stop at the last extraction, while SNB and JKP ser
   no delisting returns beyond the last price.
 * The level-break correction (3 stocks) is an ex post cleaning hypothesis.
 * Reconstructed universe, not SPI constituents; no free-float caps (no replicated CW, no size screen).
-* Month-end execution at closing prices; proportional costs, no market impact.
+* Month-end execution at closing prices (possibly stale for thinly traded stocks); proportional
+  costs with an estimated spread, no market impact.
 * JKP factors approximate Fama-French factors; they end in December 2025.
 * Fixed grid; other settings need a pipeline run.
 * Comparisons are descriptive: the monkeys distribution depends on its drawing rules, and ten years

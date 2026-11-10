@@ -25,10 +25,10 @@ export async function renderRobustness(c: Ctx, load: (key: string) => Promise<St
     <section class="card"><h3>Sharpe ratio — window × rebalancing (${SHORT[target]})</h3><div id="ch-hw" class="chart short"></div>${exportsHtml('ch-hw', 'heatmap_window_frequency')}<p class="note" id="hw-note">Loading the other configurations…</p></section>
     <section class="card"><h3>Sharpe ratio — covariance × weight cap (${SHORT[target]})</h3><div id="ch-hc" class="chart short"></div>${exportsHtml('ch-hc', 'heatmap_cov_cap')}<p class="note" id="hc-note"></p></section>
   </div>
-  <section class="card"><header class="card-head"><div><h3>Transaction-cost scenarios — current configuration, ${escapeHtml(periodLabel(c))}</h3></div><div class="tools"><button type="button" id="dl-cost">Export CSV</button></div></header><div class="table-wrap" id="tb-cost-wrap"></div></section>
+  <section class="card"><header class="card-head"><div><h3>Transaction-cost scenarios — current configuration, ${escapeHtml(periodLabel(c))}</h3><p class="muted small">Fixed cost per unit traded${s.spread ? ', plus the estimated half-spread of the traded stocks in every column' : ' (estimated spread switched off)'}.</p></div><div class="tools"><button type="button" id="dl-cost">Export CSV</button></div></header><div class="table-wrap" id="tb-cost-wrap"></div></section>
   <section class="card"><header class="card-head"><div><h3>Historical regimes — CAGR (${s.basis})</h3><p class="muted small">Regimes defined in advance from economic history (pipeline/config.py), intersected with the available sample of this configuration.</p></div><div class="tools"><button type="button" id="dl-reg">Export CSV</button></div></header><div class="table-wrap" id="tb-reg-wrap"></div></section>
   <section class="card"><header class="card-head"><div><h3>Sharpe ratio differences — stationary bootstrap</h3><p class="muted small">${escapeHtml(periodLabel(c))}; 2,000 paired resamples, mean block length 6 months, fixed seed. Holm-adjusted p-values control the family-wise error over the comparisons in each table.</p></div><div class="tools"><button type="button" id="dl-boot">Export CSV</button></div></header><div class="table-wrap" id="tb-boot-wrap"></div>
-    <p class="note">ΔSR = SR<sub>strategy</sub> − SR<sub>reference</sub>, annualised. The percentile interval and the p-value come from the bootstrap distribution of ΔSR (re-centred for the p-value). Seven strategies compared with the same benchmark on the same sample: unadjusted p-values overstate the evidence.</p></section>`;
+    <p class="note">ΔSR = SR<sub>strategy</sub> − SR<sub>reference</sub>, annualised. The p-value and the 95 % interval both come from the re-centred bootstrap distribution of ΔSR: the interval is ΔSR ± the 95th percentile of |ΔSR* − ΔSR|, so it excludes 0 exactly when the two-sided p-value is below 5 %. Seven strategies compared with the same benchmark on the same sample: unadjusted p-values overstate the evidence.</p></section>`;
 
   c.root.querySelector<HTMLSelectElement>('#rb-strat')!.onchange = (e) => c.set({ robust: (e.target as HTMLSelectElement).value as SeriesId });
 
@@ -37,13 +37,13 @@ export async function renderRobustness(c: Ctx, load: (key: string) => Promise<St
   const costs = [0, 10, 25, 50, 100];
   const costRows = ids.filter((id) => id !== 'CW').map((id) => {
     const sv = c.view.series.get(id)!;
-    return { id, cells: costs.map((bp) => perfStats(netReturns(sv.gross, sv.turnover, bp), c.view.rf, c.view.spi)) };
+    return { id, cells: costs.map((bp) => perfStats(netReturns(sv.gross, sv.turnover, bp, sv.spread), c.view.rf, c.view.spi)) };
   });
   const cw = stats(c, 'CW');
   c.root.querySelector('#tb-cost-wrap')!.innerHTML = `<table class="data" id="tb-cost"><thead><tr><th rowspan="2">Portfolio</th>${costs.map((bp) => `<th colspan="2">${bp} bp</th>`).join('')}</tr><tr>${costs.map(() => '<th>CAGR</th><th>Sharpe</th>').join('')}</tr></thead><tbody>
     <tr><th scope="row">${SHORT.CW}</th>${costs.map(() => `<td>${pct(cw.cagr)}</td><td>${num(cw.sharpe, 2)}</td>`).join('')}</tr>
     ${costRows.map((r) => `<tr><th scope="row"><span class="dot" style="background:${t.color[r.id]}"></span>${SHORT[r.id]}</th>${r.cells.map((st) => `<td data-v="${st.cagr}">${pct(st.cagr)}</td><td data-v="${st.sharpe}">${num(st.sharpe, 2)}</td>`).join('')}</tr>`).join('')}</tbody></table>
-    <p class="note">Monkeys: average portfolio, each monkey paying the cost on its own turnover.</p>`;
+    <p class="note">Monkeys: average portfolio of the monkeys, with their average turnover and spread cost.</p>`;
   c.root.querySelector<HTMLButtonElement>('#dl-cost')!.onclick = () => download('cost_scenarios.csv', tableCsv(c.root.querySelector('#tb-cost')!));
 
   // ---- regimes

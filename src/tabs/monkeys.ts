@@ -39,8 +39,9 @@ export function renderMonkeys(c: Ctx): void {
   <section class="card">
     <h2>Malkiel's Monkeys — ${m.grid.n_monkeys} random portfolios</h2>
     <p class="muted small">${escapeHtml(configLabel(c))} · ${escapeHtml(periodLabel(c))} · ${escapeHtml(basisLabel(c))} · K = ${s.k} stocks, seed ${s.seed} (change them in the settings bar)</p>
-    <p class="note"><strong>Drawing rules.</strong> At the first decision date and at every scheduled rebalancing date (${s.freq === 'M' ? 'month-ends' : s.freq === 'Q' ? 'quarter-ends' : 'year-ends'}), each monkey draws ${s.k} stocks uniformly without replacement from the same eligible universe as the strategies
-    (same ${s.window}-month history, liquidity and listing screens), holds them with equal weights and lets the weights drift until the next draw. Delistings and transaction costs are treated as for the strategies.
+    <p class="note"><strong>Drawing rules (${s.mkMode === 'keep' ? 'kept holdings' : 'redrawn holdings'}).</strong> At the first decision date each monkey draws ${s.k} stocks uniformly without replacement from the same eligible universe as the strategies
+    (same ${s.window}-month history, liquidity and listing screens), holds them with equal weights and lets the weights drift until the next scheduled rebalancing date (${s.freq === 'M' ? 'month-ends' : s.freq === 'Q' ? 'quarter-ends' : 'year-ends'}).
+    ${s.mkMode === 'keep' ? 'There it keeps the stocks that are still eligible, replaces only those that left the universe by new random draws, and restores equal weights — a stock picker that does not trade without reason.' : 'There it draws ' + s.k + ' new stocks — close to a full replacement of the portfolio, hence a high turnover and high costs.'} Delistings and transaction costs are treated as for the strategies.
     The generator of monkey j at month t is seeded with (seed, j, yyyymm): the draws are reproducible and cannot depend on later data.
     This is an illustration, not a definitive test of superiority: the distribution depends on the drawing rules, K and the universe.</p>
   </section>

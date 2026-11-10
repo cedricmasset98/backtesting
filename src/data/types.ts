@@ -4,6 +4,7 @@ export type Freq = 'M' | 'Q' | 'A';
 export type CovMethod = 'sample' | 'lw';
 export type StratId = 'EW' | 'GMV' | 'ERC' | 'TP' | 'MDP' | 'IVP' | 'TP_SAMPLE';
 export type SeriesId = 'CW' | StratId | 'MONKEYS';
+export type MonkeyMode = 'keep' | 'redraw';
 
 export interface ConfigMeta {
   key: string;
@@ -27,8 +28,8 @@ export interface Manifest {
   market_data_commit: string | null;
   data_last_date: string;
   last_complete_month: string;
-  grid: { windows: number[]; freqs: Freq[]; cov: CovMethod[]; caps: Record<string, number>; monkey_sizes: number[]; monkey_seeds: number[]; n_monkeys: number };
-  default: { window: number; freq: Freq; cov: CovMethod; cap: string; monkeys_k: number; seed: number };
+  grid: { windows: number[]; freqs: Freq[]; cov: CovMethod[]; caps: Record<string, number>; monkey_sizes: number[]; monkey_seeds: number[]; monkey_modes?: MonkeyMode[]; n_monkeys: number };
+  default: { window: number; freq: Freq; cov: CovMethod; cap: string; monkeys_k: number; seed: number; monkeys_mode?: MonkeyMode; bps?: number; spread?: boolean };
   quick: boolean;
   configs: ConfigMeta[];
   survivorship: { delistings_by_year: Record<string, number>; first_covered_year: number | null; controlled_start: string | null };
@@ -55,6 +56,7 @@ export interface Manifest {
   factors: Record<string, { jkp_characteristic: string; label: string; first: string; last: string; n: number }>;
   benchmark: { ticker: string; name: string; first: string; last: string };
   regimes: { name: string; start: string; end: string }[];
+  costs?: { spread_estimator: string; spread_groups: number; groups: { group: number; median_daily_value_chf: number | null; median_spread: number | null }[] };
   files: Record<string, number>;
   build_seconds: number;
   privacy?: { status: string; problems: string[]; files_checked: number; portfolio_months_with_fewer_than_3_holdings: number; longest_single_stock_match_months: number };
@@ -64,12 +66,14 @@ export interface Market {
   months: string[];
   spi: (number | null)[];
   rf: (number | null)[];
-  factors: Record<'MKT' | 'SMB' | 'HML' | 'RMW' | 'CMA' | 'MOM', (number | null)[]>;
+  factors: Record<'MKT' | 'SMB' | 'HML' | 'RMW' | 'CMA' | 'MOM' | 'BAB', (number | null)[]>;
 }
 
 export interface StratSeries {
   gross: (number | null)[];
   turnover: (number | null)[];
+  /** spread cost of the trades, Σ|Δw_i|·s_i/2 (fraction of wealth) */
+  spread?: (number | null)[];
   rebalanced: number[];
   n_pos: (number | null)[];
   eff_n: (number | null)[];
@@ -134,8 +138,10 @@ export interface MonkeysFile {
   freq: Freq;
   k: number;
   seed: number;
+  mode?: MonkeyMode;
   months: string[];
   scale: number;
   gross: number[][];
   turnover: number[][];
+  spread?: number[][];
 }

@@ -1,4 +1,4 @@
-/** Factor Analysis: CAPM, FF3, Carhart-4, FF5 and FF5+MOM with Swiss factors. */
+/** Factor Analysis: CAPM, FF3, Carhart-4, FF5, FF5+MOM and FF5+MOM+BAB with Swiss factors. */
 
 import type { SeriesId } from '../data/types.ts';
 import { attribution, fitModel, MODEL_IDS, MODELS, FACTORS, type FactorData, type FitOutcome, type ModelId } from '../engine/factors.ts';
@@ -20,7 +20,7 @@ const INFERENCE: Record<CovType, string> = {
 };
 
 const ROW_NAMES = ['alpha', ...FACTORS] as const;
-const ROW_LABEL: Record<string, string> = { alpha: 'Alpha (% / month)', MKT: 'MKT', SMB: 'SMB', HML: 'HML', RMW: 'RMW', CMA: 'CMA', MOM: 'MOM' };
+const ROW_LABEL: Record<string, string> = { alpha: 'Alpha (% / month)', MKT: 'MKT', SMB: 'SMB', HML: 'HML', RMW: 'RMW', CMA: 'CMA', MOM: 'MOM', BAB: 'BAB' };
 
 function factorData(c: Ctx): FactorData {
   return { months: c.market.months, rf: c.market.rf, factors: c.market.factors };
@@ -60,8 +60,8 @@ export function renderFactors(c: Ctx): void {
         <label>Inference <select id="f-inf">${(['classical', 'HC3', 'HAC'] as CovType[]).map((k) => `<option value="${k}" ${k === s.inference ? 'selected' : ''}>${k === 'classical' ? 'OLS' : k === 'HAC' ? 'Newey-West' : 'HC3'}</option>`).join('')}</select></label>
         <label>Model (charts) <select id="f-model">${MODEL_IDS.map((m) => `<option value="${m}" ${m === s.model ? 'selected' : ''}>${MODELS[m].label}</option>`).join('')}</select></label>
       </div></header>
-    <p class="note">R<sub>p</sub> − R<sub>f</sub> = α + β<sub>M</sub>MKT + β<sub>S</sub>SMB + β<sub>H</sub>HML + β<sub>R</sub>RMW + β<sub>C</sub>CMA + β<sub>W</sub>MOM + ε. MKT = SPI total return − Swiss r<sub>f</sub>.
-    SMB, HML, RMW, CMA and MOM are the Swiss <strong>Jensen-Kelly-Pedersen</strong> long-short factors built on market_equity, be_me, ope_be, at_gr1 and ret_12_1 (capped value weights, converted from USD to CHF as F(1 + s)).
+    <p class="note">R<sub>p</sub> − R<sub>f</sub> = α + β<sub>M</sub>MKT + β<sub>S</sub>SMB + β<sub>H</sub>HML + β<sub>R</sub>RMW + β<sub>C</sub>CMA + β<sub>W</sub>MOM + β<sub>B</sub>BAB + ε. MKT = SPI total return − Swiss r<sub>f</sub>.
+    SMB, HML, RMW, CMA, MOM and BAB (low beta − high beta) are the Swiss <strong>Jensen-Kelly-Pedersen</strong> long-short factors built on market_equity, be_me, ope_be, at_gr1, ret_12_1 and betabab_1260d (capped value weights, converted from USD to CHF as F(1 + s)).
     They are close to, but not replications of, the Fama-French factors. JKP data end in ${jkpLast}: months after that are not in the multifactor samples.</p>
     ${unavailable.length ? `<p class="warn">Not estimated: ${unavailable.map((m) => `${MODELS[m].label} — ${escapeHtml((F[m] as Extract<FitOutcome, { ok: false }>).reason)}`).join('; ')}</p>` : ''}
   </section>
@@ -109,7 +109,7 @@ export function renderFactors(c: Ctx): void {
   <div class="grid2">
     <section class="card"><h3>Coefficient plot — ${LABEL[pf]}, ${MODELS[s.model].label}</h3><div id="ch-coef" class="chart"></div>${exportsHtml('ch-coef', 'coefficients')}
       <p class="note">Points: estimates; bars: 95 % confidence intervals (${s.inference === 'classical' ? 'OLS' : s.inference}). Alpha is shown annualised (×12) on its own axis scale in the table above.</p></section>
-    <section class="card"><h3>Factor exposures — FF5+MOM, all portfolios</h3><div id="ch-heat" class="chart"></div>${exportsHtml('ch-heat', 'exposures_heatmap')}
+    <section class="card"><h3>Factor exposures — FF5+MOM+BAB, all portfolios</h3><div id="ch-heat" class="chart"></div>${exportsHtml('ch-heat', 'exposures_heatmap')}
       <p class="note">Slope coefficients; diverging scale centred on 0 (MKT shown as β − 1 would hide the level, so the raw β is displayed).</p></section>
   </div>
 
@@ -150,8 +150,8 @@ export function renderFactors(c: Ctx): void {
     }], baseLayout(t, { showlegend: false, xaxis: { title: { text: 'Coefficient' }, zeroline: true }, yaxis: { autorange: 'reversed' } }));
   }
 
-  // heatmap of exposures (FF5+MOM)
-  const heat = available.map((id) => fitModel(c.view.months, c.view.series.get(id)!.r, factorData(c), 'FF5MOM', s.inference));
+  // heatmap of exposures (the model with all factors)
+  const heat = available.map((id) => fitModel(c.view.months, c.view.series.get(id)!.r, factorData(c), 'FF5MOMBAB', s.inference));
   const z = heat.map((f) => (f.ok ? f.result.beta.slice(1) : FACTORS.map(() => null)));
   const zmax = Math.max(0.5, ...z.flat().filter((v): v is number => v !== null).map((v) => Math.abs(v)));
   draw(document.getElementById('ch-heat'), [{

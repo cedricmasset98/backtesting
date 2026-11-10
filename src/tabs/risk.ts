@@ -18,7 +18,7 @@ function characteristics(c: Ctx, id: SeriesId) {
     const mk = c.view.monkeys;
     return {
       to: 12 * mean(mk.turnover.map((t) => mean(t))),
-      costs: mean(mk.gross.map((g, j) => cumulativeCosts(g, mk.turnover[j], c.s.bps))),
+      costs: mean(mk.gross.map((g, j) => cumulativeCosts(g, mk.turnover[j], c.s.bps, mk.spread[j]))),
       effN: c.s.k,
       maxW: 1 / c.s.k,
       nPos: c.s.k,
@@ -30,7 +30,7 @@ function characteristics(c: Ctx, id: SeriesId) {
   const to = sv.turnover.map((v) => v ?? 0);
   return {
     to: (12 * to.reduce((a, b) => a + b, 0)) / to.length,
-    costs: cumulativeCosts(sv.gross, sv.turnover, c.s.bps),
+    costs: cumulativeCosts(sv.gross, sv.turnover, c.s.bps, sv.spread),
     effN: mean(pick(f.eff_n)),
     maxW: mean(pick(f.max_w)),
     nPos: mean(pick(f.n_pos)),

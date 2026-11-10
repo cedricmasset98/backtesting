@@ -8,7 +8,7 @@ function dataset(n: number): { data: FactorData; months: string[]; r: (number | 
   const rand = mulberry32(11);
   const g = () => (rand() - 0.5) * 0.08;
   const months = Array.from({ length: n }, (_, i) => `${2000 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`);
-  const f = { MKT: [] as (number | null)[], SMB: [] as (number | null)[], HML: [] as (number | null)[], RMW: [] as (number | null)[], CMA: [] as (number | null)[], MOM: [] as (number | null)[] };
+  const f = { MKT: [] as (number | null)[], SMB: [] as (number | null)[], HML: [] as (number | null)[], RMW: [] as (number | null)[], CMA: [] as (number | null)[], MOM: [] as (number | null)[], BAB: [] as (number | null)[] };
   const rf: (number | null)[] = [];
   const r: (number | null)[] = [];
   for (let t = 0; t < n; t++) {

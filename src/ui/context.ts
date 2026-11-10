@@ -59,7 +59,7 @@ export function periodLabel(c: Pick<Ctx, 'view'>): string {
 }
 
 export function basisLabel(c: Pick<Ctx, 's'>): string {
-  return c.s.basis === 'net' ? `net of ${c.s.bps} bp transaction costs on traded value` : 'gross of transaction costs';
+  return c.s.basis === 'net' ? `net of costs: ${c.s.bps} bp fixed${c.s.spread ? ' + estimated half-spread' : ''} on traded value` : 'gross of transaction costs';
 }
 
 export function configLabel(c: Pick<Ctx, 's'>): string {

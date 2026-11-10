@@ -11,8 +11,8 @@
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import type { Manifest, Market, MonkeysFile, StrategiesFile } from '../src/data/types.ts';
-import { configKey } from '../src/data/loader.ts';
+import type { Manifest, Market, MonkeyMode, MonkeysFile, StrategiesFile } from '../src/data/types.ts';
+import { configKey, monkeysKey } from '../src/data/loader.ts';
 import { buildView } from '../src/model.ts';
 import { defaults } from '../src/state.ts';
 import { reportBlocks } from '../src/report/blocks.ts';
@@ -28,11 +28,15 @@ const m = read<Manifest>('manifest.json');
 const market = read<Market>('market.json');
 const s = defaults(m);
 const strat = read<StrategiesFile>(`strategies/${configKey(s.window, s.cov, s.cap)}.json`);
-const mkPath = `monkeys/L${s.window}_${s.freq}_k${s.k}_s${s.seed}.json`;
-const monkeys = existsSync(`${DATA}/${mkPath}`) ? read<MonkeysFile>(mkPath) : null;
+const mkPath = (mode: MonkeyMode) => `monkeys/${monkeysKey(s.window, s.freq, s.k, s.seed, mode)}.json`;
+const loadMk = (mode: MonkeyMode) => (existsSync(`${DATA}/${mkPath(mode)}`) ? read<MonkeysFile>(mkPath(mode)) : null);
+const monkeys = loadMk(s.mkMode);
 const view = buildView(strat, market, monkeys, s);
 
-const blocks = await reportBlocks({ s, m, market, strat, monkeys, view }, async (key) => read<StrategiesFile>(`strategies/${key}.json`));
+const blocks = await reportBlocks({ s, m, market, strat, monkeys, view }, {
+  strategies: async (key) => read<StrategiesFile>(`strategies/${key}.json`),
+  monkeys: async (mode) => loadMk(mode),
+});
 const tex = toLatex(blocks, {
   title: 'Swiss Equity Portfolio Lab — Results report',
   footer: `Swiss Equity Portfolio Lab · cedricmasset.ch/backtesting · ${view.period[0]} – ${view.period[1]} · built ${m.generated_at.slice(0, 10)}`,

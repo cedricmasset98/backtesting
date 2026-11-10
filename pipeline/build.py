@@ -116,6 +116,7 @@ def run_config(job: tuple[int, str, str]) -> dict:
             freqs[f][s] = {
                 "gross": arr(sim.gross[sl], 10),
                 "turnover": arr(sim.turnover[sl], 8),
+                "spread": arr(sim.spread[sl], 8),
                 "rebalanced": [int(v) for v in sim.rebalanced[sl]],
                 "n_pos": [int(v) if np.isfinite(v) else None for v in sim.n_pos[sl]],
                 "eff_n": arr(sim.eff_n[sl], 3),
@@ -186,24 +187,32 @@ def run_config(job: tuple[int, str, str]) -> dict:
             "frontier": {"key": key, "cap_value": C.CAPS[cap_key], "snapshots": frontiers}, "meta": meta}
 
 
-def run_monkeys(job: tuple[int, str, int, int]) -> dict:
-    window, freq, k, seed = job
+def run_monkeys(job: tuple[int, str, int, int, str]) -> dict:
+    window, freq, k, seed, mode = job
     panel: D.Panel = G["panel"]
     elig = G["elig"][window]
     start = B.first_decision(elig.sum(axis=1), G["rf"].series, G["spi"])
     t0 = panel.months.get_loc(start)
-    gross, turn = MK.simulate_monkeys(panel, elig, t0, freq, k, seed)
+    gross, turn, spread = MK.simulate_monkeys(panel, elig, t0, freq, k, seed, mode=mode)
     sl = slice(t0 + 1, len(panel.months))
-    g = gross[:, sl]
-    tu = turn[:, sl]
+    sc = 1e6
+
+    def ints(a):
+        return [[int(round(v * sc)) if np.isfinite(v) else 0 for v in row] for row in a[:, sl]]
+
     return {
-        "key": f"L{window}_{freq}_k{k}_s{seed}", "window": window, "freq": freq, "k": k, "seed": seed,
+        "key": monkeys_key(window, freq, k, seed, mode), "window": window, "freq": freq, "k": k, "seed": seed, "mode": mode,
         "months": [str(m) for m in panel.months[sl]],
-        "scale": 1e8,
-        # integers: returns × 1e8 and turnover × 1e8 (compact, exact to 1e-8)
-        "gross": [[int(round(v * 1e8)) for v in row] for row in g],
-        "turnover": [[int(round(v * 1e8)) for v in row] for row in tu],
+        "scale": sc,
+        # integers: returns, turnover and spread cost × 1e6 (compact, exact to 1e-6)
+        "gross": ints(gross),
+        "turnover": ints(turn),
+        "spread": ints(spread),
     }
+
+
+def monkeys_key(window: int, freq: str, k: int, seed: int, mode: str) -> str:
+    return f"L{window}_{freq}_k{k}_s{seed}_{mode}"
 
 
 # ------------------------------------------------------------------ writing
@@ -268,7 +277,7 @@ def main(argv=None) -> None:
     jobs = [(L, cov, cap) for L in C.WINDOWS for cov in C.COV_METHODS for cap in C.CAPS]
     # heaviest jobs first (short windows with the sample covariance)
     jobs.sort(key=lambda j: (j[1] != "sample", j[0]))
-    mjobs = [(L, f, k, s) for L in C.WINDOWS for f in C.FREQS for k in C.MONKEY_SIZES for s in C.MONKEY_SEEDS]
+    mjobs = [(L, f, k, s, mo) for L in C.WINDOWS for f in C.FREQS for k in C.MONKEY_SIZES for s in C.MONKEY_SEEDS for mo in C.MONKEY_MODES]
     ctx = mp.get_context("fork")
     sizes = {}
     metas = []
@@ -297,7 +306,8 @@ def main(argv=None) -> None:
         "data_last_date": G["data_last_date"],
         "last_complete_month": str(G["last"]),
         "grid": {"windows": C.WINDOWS, "freqs": list(C.FREQS), "cov": C.COV_METHODS, "caps": {k: v for k, v in C.CAPS.items()},
-                 "monkey_sizes": C.MONKEY_SIZES, "monkey_seeds": C.MONKEY_SEEDS, "n_monkeys": C.N_MONKEYS},
+                 "monkey_sizes": C.MONKEY_SIZES, "monkey_seeds": C.MONKEY_SEEDS, "monkey_modes": C.MONKEY_MODES,
+                 "n_monkeys": C.N_MONKEYS},
         "default": C.DEFAULT if not args.quick else {**C.DEFAULT, "window": 60, "cov": "lw", "cap": "10"},
         "quick": bool(args.quick),
         "strategies": C.STRATEGIES, "extra_strategies": C.EXTRA_STRATEGIES,
@@ -325,6 +335,8 @@ def main(argv=None) -> None:
             "eligible": elig_counts,
             "listed": [int(v) for v in panel.alive.sum(axis=1)],
         },
+        "costs": {"spread_estimator": "Abdi and Ranaldo (2017) close-high-low, 63 trading days, median by liquidity group",
+                  "spread_groups": C.SPREAD_GROUPS, "groups": panel.spread_groups},
         "risk_free": {"segments": G["rf"].segments, "checks": G["rf"].checks},
         "factors": G["finfo"],
         "benchmark": {"ticker": "SSHI.INDX", "name": "SPI (Swiss Performance Index), total return, CHF",

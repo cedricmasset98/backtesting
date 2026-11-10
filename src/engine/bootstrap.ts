@@ -66,11 +66,13 @@ export function sharpeDiffBootstrap(exA: number[], exB: number[], opts: { reps?:
     const d = sharpe(a) - sharpe(b);
     if (Number.isFinite(d)) boot.push(d);
   }
-  boot.sort((x, y) => x - y);
-  const q = (p: number) => boot[Math.min(boot.length - 1, Math.max(0, Math.floor(p * (boot.length - 1))))];
-  const centred = boot.map((d) => d - diff);
-  const extreme = centred.filter((d) => Math.abs(d) >= Math.abs(diff)).length;
-  return { diff, low: q((1 - level) / 2), high: q(1 - (1 - level) / 2), pvalue: (extreme + 1) / (boot.length + 1), reps: boot.length };
+  // Two-sided test of ΔSR = 0 from the re-centred distribution |ΔSR* − ΔSR|, and the
+  // symmetric interval obtained by inverting the same test, ΔSR ± q_level(|ΔSR* − ΔSR|):
+  // the interval excludes 0 exactly when |ΔSR| exceeds that quantile (p < 1 − level).
+  const dev = boot.map((d) => Math.abs(d - diff)).sort((x, y) => x - y);
+  const half = dev[Math.min(dev.length - 1, Math.ceil(level * (dev.length + 1)) - 1)];
+  const extreme = dev.filter((d) => d >= Math.abs(diff)).length;
+  return { diff, low: diff - half, high: diff + half, pvalue: (extreme + 1) / (boot.length + 1), reps: boot.length };
 }
 
 /** Holm (1979) step-down adjusted p-values (family-wise error rate). */

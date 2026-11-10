@@ -2,7 +2,8 @@
 
 import type { CovType } from './engine/ols.ts';
 import type { ModelId } from './engine/factors.ts';
-import type { CovMethod, Freq, Manifest, SeriesId } from './data/types.ts';
+import type { CovMethod, Freq, Manifest, MonkeyMode, SeriesId } from './data/types.ts';
+import { MODEL_IDS } from './engine/factors.ts';
 
 export const TABS = ['overview', 'performance', 'risk', 'factors', 'frontier', 'monkeys', 'composition', 'robustness', 'data'] as const;
 export type TabId = (typeof TABS)[number];
@@ -17,12 +18,15 @@ export interface State {
   cov: CovMethod;
   cap: string;
   bps: number;
+  /** add the estimated bid-ask spread cost to the fixed cost */
+  spread: boolean;
   basis: 'net' | 'gross';
   start: string;
   end: string;
   visible: SeriesId[];
   k: number;
   seed: number;
+  mkMode: MonkeyMode;
   log: boolean;
   compareGross: boolean;
   inference: CovType;
@@ -41,13 +45,15 @@ export function defaults(m: Manifest): State {
     freq: d.freq,
     cov: d.cov,
     cap: d.cap,
-    bps: 20,
+    bps: d.bps ?? 10,
+    spread: d.spread ?? true,
     basis: 'net',
     start: m.survivorship.controlled_start ?? m.configs[0]?.first_return ?? '2000-01',
     end: m.last_complete_month,
     visible: [...MAIN_SERIES],
     k: d.monkeys_k,
     seed: d.seed,
+    mkMode: d.monkeys_mode ?? 'keep',
     log: false,
     compareGross: false,
     inference: 'HAC',
@@ -79,6 +85,7 @@ export function fromUrl(m: Manifest, search: string): State {
   const tc = Number(p.get('tc'));
   if (p.has('tc') && Number.isFinite(tc) && tc >= 0 && tc <= 500) s.bps = tc;
   if (p.get('basis') === 'gross') s.basis = 'gross';
+  if (p.has('sp')) s.spread = p.get('sp') === '1';
   const from = p.get('from');
   if (from && MONTH.test(from)) s.start = from;
   const to = p.get('to');
@@ -89,6 +96,8 @@ export function fromUrl(m: Manifest, search: string): State {
   if (g.monkey_sizes.includes(k)) s.k = k;
   const seed = Number(p.get('seed'));
   if (g.monkey_seeds.includes(seed)) s.seed = seed;
+  const mk = p.get('mk');
+  if (mk === 'keep' || mk === 'redraw') s.mkMode = mk;
   s.log = p.get('log') === '1';
   s.compareGross = p.get('cmp') === '1';
   const inf = p.get('inf');
@@ -96,7 +105,7 @@ export function fromUrl(m: Manifest, search: string): State {
   const pf = p.get('pf');
   if (pf && (ALL_SERIES as string[]).includes(pf)) s.pf = pf as SeriesId;
   const model = p.get('model');
-  if (model && ['CAPM', 'FF3', 'CARHART', 'FF5', 'FF5MOM'].includes(model)) s.model = model as ModelId;
+  if (model && (MODEL_IDS as string[]).includes(model)) s.model = model as ModelId;
   const roll = Number(p.get('roll'));
   if ([36, 60, 120].includes(roll)) s.roll = roll;
   const snap = p.get('snap');
@@ -118,11 +127,13 @@ export function toUrl(s: State, d: State): string {
   set('cap', s.cap, d.cap);
   set('tc', String(s.bps), String(d.bps));
   set('basis', s.basis, d.basis);
+  set('sp', s.spread ? '1' : '0', d.spread ? '1' : '0');
   set('from', s.start, d.start);
   set('to', s.end, d.end);
   set('s', s.visible.join(','), d.visible.join(','));
   set('k', String(s.k), String(d.k));
   set('seed', String(s.seed), String(d.seed));
+  set('mk', s.mkMode, d.mkMode);
   set('log', s.log ? '1' : '0', '0');
   set('cmp', s.compareGross ? '1' : '0', '0');
   set('inf', s.inference, d.inference);

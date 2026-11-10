@@ -134,6 +134,14 @@ class SimResult:
     max_w: np.ndarray
     top10: np.ndarray
     exits: int               # positions liquidated after a delisting
+    spread: np.ndarray | None = None  # spread cost of the trades Σ|Δw_i|·s_i/2 (fraction of wealth)
+
+
+def _half_spread(panel: Panel) -> np.ndarray:
+    """Half spreads (months × codes), 0 where unknown or when the panel has none."""
+    if panel.half_spread is None:
+        return np.zeros((len(panel.months), len(panel.codes)))
+    return np.nan_to_num(panel.half_spread.reindex(index=panel.months, columns=panel.codes).to_numpy(float), nan=0.0)
 
 
 def simulate(run: WeightsRun, strategy: str, freq: str, panel: Panel) -> SimResult:
@@ -148,8 +156,10 @@ def simulate(run: WeightsRun, strategy: str, freq: str, panel: Panel) -> SimResu
       holdings at that month-end; the trade counts in turnover. Only information
       available at the month-end is used (no knowledge of the final listing date).
     * Transaction costs are not applied here: net returns are computed from
-      gross returns and turnover (costs.py / the browser), which is exact for
-      proportional costs.
+      gross returns, turnover (fixed cost per unit traded) and the spread cost
+      Σ_i |Δw_i| · s_i/2 of the same trades, with s_i the estimated bid-ask
+      spread of stock i at that month-end (data.half_spreads), in the browser;
+      this is exact for proportional costs.
     """
     months = panel.months
     T = len(months)
@@ -157,7 +167,8 @@ def simulate(run: WeightsRun, strategy: str, freq: str, panel: Panel) -> SimResu
     rv = panel.r_val.reindex(columns=panel.codes).to_numpy()
     observed = panel.observed.reindex(columns=panel.codes).to_numpy()
     sched = rebalance_months(months, freq)
-    out = SimResult(*(np.full(T, np.nan) for _ in range(2)), np.zeros(T, bool), *(np.full(T, np.nan) for _ in range(4)), 0)
+    out = SimResult(*(np.full(T, np.nan) for _ in range(2)), np.zeros(T, bool), *(np.full(T, np.nan) for _ in range(4)), 0, np.full(T, np.nan))
+    hs = _half_spread(panel)
     post: np.ndarray | None = None
     for k in range(run.t0, T - 1):
         dec = run.decisions.get(k)
@@ -181,6 +192,7 @@ def simulate(run: WeightsRun, strategy: str, freq: str, panel: Panel) -> SimResu
         else:
             continue
         out.turnover[k + 1] = 0.0 if post is None else float(np.abs(target - post).sum())
+        out.spread[k + 1] = 0.0 if post is None else float(np.abs(target - post) @ hs[k])
         out.rebalanced[k + 1] = bool(scheduled and dec is not None)
         r = rv[k + 1]
         held = target > 0

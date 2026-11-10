@@ -13,6 +13,7 @@ including month t and is applied to the returns of month t+1 onwards.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -134,7 +135,11 @@ def load_daily(md: Path, codes: list[str], log: CleanLog) -> dict[str, pd.DataFr
         log.invalid_rows += n_bad
         log.spike_rows += n_spk
         if len(d):
-            out[code] = d[["date", "close", "adjusted_close", "volume", "spike"]].rename(columns={"adjusted_close": "adj"}).reset_index(drop=True)
+            # high and low on the adjusted scale (for the spread estimator)
+            f = d["adjusted_close"] / d["close"]
+            d["hi"] = d["high"] * f if "high" in d else np.nan
+            d["lo"] = d["low"] * f if "low" in d else np.nan
+            out[code] = d[["date", "close", "adjusted_close", "volume", "spike", "hi", "lo"]].rename(columns={"adjusted_close": "adj"}).reset_index(drop=True)
     return out
 
 
@@ -213,6 +218,8 @@ class Panel:
     observed: pd.DataFrame            # bool: at least one price in the month (known at month-end)
     last_month: dict[str, pd.Period]  # last month with a valid price (end of life, used for valuation only)
     flagged_reversals: int            # ex post count of Ince-Porter reversals (information)
+    half_spread: pd.DataFrame | None = None  # estimated half bid-ask spread at each month-end (cost per unit traded)
+    spread_groups: list = field(default_factory=list)  # summary of the spread groups (for the manifest)
 
     @property
     def r_est(self) -> pd.DataFrame:  # backwards-compatible name
@@ -225,6 +232,7 @@ def monthly_panel(daily: dict[str, pd.DataFrame], names: dict[str, str], last_co
     months = pd.period_range(first, last_complete, freq="M")
     month_end = months.to_timestamp(how="end").normalize()
     price, praw, alive, liquid, rval = {}, {}, {}, {}, {}
+    mdv, ar2 = {}, {}
     last_month = {}
     for c in codes:
         d = daily[c]
@@ -249,7 +257,20 @@ def monthly_panel(daily: dict[str, pd.DataFrame], names: dict[str, str], last_co
             "med": (d["close"] * d["volume"]).rolling(C.LIQ_LOOKBACK_DAYS, min_periods=C.LIQ_LOOKBACK_DAYS // 2).median().to_numpy(),
             "zsh": (d["volume"] <= 0).astype(float).rolling(C.LIQ_LOOKBACK_DAYS, min_periods=C.LIQ_LOOKBACK_DAYS // 2).mean().to_numpy(),
         })
+        # Abdi-Ranaldo two-day estimate of the squared spread, assigned to the second
+        # day of each pair (so the trailing window never uses a future row)
+        hi = d["hi"].to_numpy(float) if "hi" in d else np.full(len(d), np.nan)
+        lo = d["lo"].to_numpy(float) if "lo" in d else np.full(len(d), np.nan)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            lc, eta = np.log(d["adj"].to_numpy(float)), 0.5 * (np.log(hi) + np.log(lo))
+        s2 = np.full(len(d), np.nan)
+        if len(d) > 1:
+            with np.errstate(invalid="ignore"):
+                s2[1:] = 4 * (lc[:-1] - eta[:-1]) * (lc[:-1] - eta[1:])
+        dd["ar2"] = pd.Series(s2).rolling(C.LIQ_LOOKBACK_DAYS, min_periods=C.LIQ_LOOKBACK_DAYS // 2).mean().to_numpy()
         lastrow = dd.groupby("per").nth(-1).set_index("per")
+        mdv[c] = lastrow["med"].reindex(months)
+        ar2[c] = lastrow["ar2"].reindex(months)
         ok = (lastrow["med"] >= C.LIQ_MIN_MEDIAN_VALUE) & (lastrow["zsh"] <= C.LIQ_MAX_ZERO_VOLUME)
         liquid[c] = ok.reindex(months).fillna(False).astype(bool)
         price[c] = p
@@ -270,10 +291,52 @@ def monthly_panel(daily: dict[str, pd.DataFrame], names: dict[str, str], last_co
     r_last = (praw / price.shift(1) - 1).where(praw.notna() & price.shift(1).notna())
     nxt = r_gen.shift(-1)
     rev = (r_gen > C.REVERSAL_UP) & ((1 + r_gen) * (1 + nxt) - 1 < C.REVERSAL_TWO_MONTH)
+    hs, groups = half_spreads(pd.DataFrame(mdv).reindex(months)[list(rval)], pd.DataFrame(ar2).reindex(months)[list(rval)])
     return Panel(months, list(price.columns), names, price, praw, r_gen, r_last, pd.DataFrame(rval),
                  pd.DataFrame(alive)[list(rval)].fillna(False).astype(bool),
                  pd.DataFrame(liquid).reindex(months)[list(rval)].fillna(False).astype(bool),
-                 praw.notna(), last_month, int(rev.to_numpy().sum()))
+                 praw.notna(), last_month, int(rev.to_numpy().sum()), half_spread=hs, spread_groups=groups)
+
+
+def half_spreads(mdv: pd.DataFrame, ar2: pd.DataFrame) -> tuple[pd.DataFrame, list]:
+    """Half bid-ask spread of each stock at each month-end (point in time).
+
+    The Abdi-Ranaldo estimate of one stock over 63 days is noisy, so at each
+    month-end the stocks with a liquidity measure are split into SPREAD_GROUPS
+    groups of median daily traded value (quantiles of that month) and every
+    stock gets the median estimate of its group, √max(mean s², 0). Stocks
+    without a liquidity measure get the spread of the least liquid group;
+    afterwards each stock keeps its last value (needed to sell a holding that
+    stopped trading). Returns the half spreads and a summary for the manifest."""
+    M, A = mdv.to_numpy(float), ar2.to_numpy(float)
+    out = np.full(M.shape, np.nan)
+    G = C.SPREAD_GROUPS
+    summary = {g: {"mdv": [], "spread": []} for g in range(G)}
+    for t in range(M.shape[0]):
+        m, a = M[t], A[t]
+        ok = np.isfinite(m) & (m > 0)
+        if ok.sum() < 2 * G:
+            continue
+        edges = np.quantile(m[ok], np.linspace(0, 1, G + 1)[1:-1])
+        grp = np.digitize(m, edges)
+        spread = np.full(G, np.nan)
+        for g in range(G):
+            sel = ok & (grp == g) & np.isfinite(a)
+            if sel.any():
+                spread[g] = min(C.SPREAD_MAX, math.sqrt(max(float(np.median(a[sel])), 0.0)))
+        spread = pd.Series(spread).bfill().ffill().to_numpy()  # empty group: neighbour value
+        row = np.where(ok, spread[np.clip(grp, 0, G - 1)], spread[0])
+        out[t] = np.where(np.isfinite(m) | np.isfinite(a), row, np.nan)
+        for g in range(G):
+            summary[g]["mdv"].append(float(np.median(m[ok & (grp == g)])) if (ok & (grp == g)).any() else np.nan)
+            summary[g]["spread"].append(spread[g])
+    hs = pd.DataFrame(out / 2, index=mdv.index, columns=mdv.columns).ffill()
+    def med(x: list) -> float | None:
+        x = [v for v in x if np.isfinite(v)]
+        return round(float(np.median(x)), 6) if x else None
+
+    groups = [{"group": g + 1, "median_daily_value_chf": med(v["mdv"]), "median_spread": med(v["spread"])} for g, v in summary.items()]
+    return hs, groups
 
 
 def estimation_window(panel: Panel, k: int, window: int) -> np.ndarray | None:

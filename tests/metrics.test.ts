@@ -77,6 +77,17 @@ test('bootstrap is reproducible and centred', () => {
   assert.equal(same.diff, 0);
 });
 
+test('bootstrap interval and p-value agree: 0 outside the 95 % interval ⇔ p < 5 %', () => {
+  const rand = mulberry32(5);
+  for (let i = 0; i < 40; i++) {
+    const shift = (i / 40) * 0.012;
+    const a = Array.from({ length: 120 }, () => shift + (rand() - 0.5) * 0.1);
+    const b = Array.from({ length: 120 }, () => (rand() - 0.5) * 0.1);
+    const x = sharpeDiffBootstrap(a, b, { reps: 400, seed: i });
+    assert.equal(x.low > 0 || x.high < 0, x.pvalue < 0.05, `case ${i}: [${x.low}, ${x.high}] p = ${x.pvalue}`);
+  }
+});
+
 test('Holm adjustment', () => {
   const adj = holm([0.01, 0.04, 0.03, 0.2]);
   assert.deepEqual(adj.map((x) => +x.toFixed(10)), [0.04, 0.09, 0.09, 0.2]);

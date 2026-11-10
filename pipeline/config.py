@@ -32,7 +32,8 @@ COV_METHODS = ["sample", "lw"]
 CAPS = {"25": 0.25, "10": 0.10, "5": 0.05}
 
 # Default configuration shown when the site opens.
-DEFAULT = {"window": 60, "freq": "Q", "cov": "lw", "cap": "10", "monkeys_k": 30, "seed": 1}
+DEFAULT = {"window": 60, "freq": "Q", "cov": "lw", "cap": "10", "monkeys_k": 30, "seed": 1, "monkeys_mode": "keep",
+           "bps": 10, "spread": True}
 
 STRATEGIES = ["CW", "EW", "GMV", "ERC", "TP", "MDP", "IVP"]
 # Extra series computed for the sensitivity of the tangency portfolio to the
@@ -43,15 +44,27 @@ EXTRA_STRATEGIES = ["TP_SAMPLE"]
 N_MONKEYS = 100
 MONKEY_SIZES = [10, 30, 50]
 MONKEY_SEEDS = [1, 2, 3]
+# keep: holdings kept while eligible, only stocks that leave the eligible universe
+#       are replaced (equal weights restored at each rebalancing date);
+# redraw: K new stocks drawn at every rebalancing date.
+MONKEY_MODES = ["keep", "redraw"]
 
 # ---------------------------------------------------------- universe rules
 MIN_UNIVERSE = 30              # no decision with fewer eligible stocks
 LIQ_LOOKBACK_DAYS = 63         # trailing trading days for liquidity screens
-LIQ_MIN_MEDIAN_VALUE = 50_000  # CHF, median daily traded value (close × volume)
+LIQ_MIN_MEDIAN_VALUE = 500_000  # CHF, median daily traded value (close × volume)
 LIQ_MAX_ZERO_VOLUME = 0.50     # max share of days without volume
 STALE_MAX_DAYS = 7             # last trade at most 7 calendar days before month-end
 PRICE_MIN = 0.001              # CHF; below = placeholder value (e.g. 0.0001)
 PRICE_MAX = 999_000.0          # CHF; above = placeholder value (e.g. 999999.9999)
+# Bid-ask spread (transaction costs): Abdi & Ranaldo (2017) close-high-low
+# estimator, s² = 4 E[(c_t − η_t)(c_t − η_{t+1})] with η the mid-range in logs,
+# averaged over the trailing LIQ_LOOKBACK_DAYS two-day pairs that end in the
+# month (no future row). The noisy stock estimates are smoothed across stocks:
+# at each month-end, stocks are grouped into SPREAD_GROUPS groups of median
+# daily traded value and each stock is assigned the median estimate of its group.
+SPREAD_GROUPS = 10
+SPREAD_MAX = 0.10              # cap on a group spread (10 %)
 # Daily spike filter: a move of at least ×SPIKE_UP (or ÷SPIKE_UP) that is undone
 # within SPIKE_REVERT_DAYS rows (back within ±SPIKE_TOL of the pre-spike level).
 SPIKE_UP = 3.0
@@ -112,6 +125,7 @@ JKP_FACTORS = {
     "RMW": ("ope_be", "operating profit / book equity (robust − weak)"),
     "CMA": ("at_gr1", "annual growth in total assets (conservative − aggressive)"),
     "MOM": ("ret_12_1", "return from t−12 to t−1 (winners − losers)"),
+    "BAB": ("betabab_1260d", "Frazzini–Pedersen beta (low beta − high beta)"),
 }
 JKP_MIN_STOCKS = 30            # months with fewer stocks in a factor are dropped (as in Empirical-Asset-Pricing)
 SURVIVORSHIP_MIN_DELISTINGS = 5  # a year is "covered" when the data hold at least this many delistings

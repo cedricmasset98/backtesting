@@ -33,6 +33,7 @@ MODELS = {
     "CARHART": ["MKT", "SMB", "HML", "MOM"],
     "FF5": ["MKT", "SMB", "HML", "RMW", "CMA"],
     "FF5MOM": ["MKT", "SMB", "HML", "RMW", "CMA", "MOM"],
+    "FF5MOMBAB": ["MKT", "SMB", "HML", "RMW", "CMA", "MOM", "BAB"],
 }
 COVS = ["classical", "HC3", "HAC"]
 
@@ -92,7 +93,11 @@ def synthetic() -> dict:
         e[t] = (0.3 * e[t - 1] if t else 0) + rng.normal(0, 0.01 * (1 + abs(F[t, 0]) * 20))
     beta = np.array([0.001, 0.9, 0.3, -0.2, 0.15, 0.1, 0.05])
     y = beta[0] + F @ beta[1:] + e
-    names = ["MKT", "SMB", "HML", "RMW", "CMA", "MOM"]
+    # seventh factor from its own generator (the first six series are unchanged)
+    bab = np.random.default_rng(20261110).normal(0.002, 0.04, size=(n, 1))
+    y = y + 0.2 * bab[:, 0]
+    F = np.hstack([F, bab])
+    names = ["MKT", "SMB", "HML", "RMW", "CMA", "MOM", "BAB"]
     data = {k: F[:, i].tolist() for i, k in enumerate(names)}
     cases = []
     for model, cols in MODELS.items():

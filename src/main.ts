@@ -68,11 +68,13 @@ function buildControls(): void {
       <label>Max weight <select id="c-cap">${Object.keys(g.caps).map((k) => option(k, `${k} %`, false)).join('')}</select></label>
     </fieldset>
     <fieldset><legend>Costs</legend>
-      <label class="range">Transaction costs <input type="range" id="c-bps" min="0" max="200" step="5" /><input type="number" id="c-bps-n" min="0" max="500" step="1" class="num" /> bp</label>
+      <label class="range" title="Commission and stamp duty, per unit of traded value">Fixed cost <input type="range" id="c-bps" min="0" max="200" step="5" /><input type="number" id="c-bps-n" min="0" max="500" step="1" class="num" /> bp</label>
+      <label class="check" title="Half of the bid-ask spread estimated for each traded stock (Abdi-Ranaldo estimator, by liquidity group)"><input type="checkbox" id="c-spread" /> + estimated bid-ask spread</label>
       <label>Returns <select id="c-basis">${option('net', 'Net of costs', false)}${option('gross', 'Gross', false)}</select></label>
     </fieldset>
     <fieldset><legend>Monkeys</legend>
       <label>Stocks (K) <select id="c-k">${g.monkey_sizes.map((k) => option(String(k), String(k), false)).join('')}</select></label>
+      <label title="Kept: stocks are replaced only when they leave the eligible universe. Redrawn: K new stocks at every rebalancing date.">Holdings <select id="c-mk">${option('keep', 'Kept', false)}${option('redraw', 'Redrawn', false)}</select></label>
       <label>Seed <select id="c-seed">${g.monkey_seeds.map((k) => option(String(k), String(k), false)).join('')}</select></label>
     </fieldset>
     <fieldset class="series"><legend>Portfolios shown</legend>
@@ -90,6 +92,8 @@ function buildControls(): void {
   on('c-bps', 'input', (el) => ($('c-bps-n') as HTMLInputElement).value = el.value);
   on('c-bps-n', 'change', (el) => setState({ bps: Math.max(0, Math.min(500, Number(el.value) || 0)) }));
   on('c-basis', 'change', (el) => setState({ basis: el.value as State['basis'] }));
+  on('c-spread', 'change', (el) => setState({ spread: el.checked }));
+  on('c-mk', 'change', (el) => setState({ mkMode: el.value as State['mkMode'] }));
   on('c-k', 'change', (el) => setState({ k: Number(el.value) }));
   on('c-seed', 'change', (el) => setState({ seed: Number(el.value) }));
   $('controls').querySelectorAll<HTMLInputElement>('.series input').forEach((cb) =>
@@ -125,6 +129,8 @@ function syncControls(): void {
   ($('c-bps') as HTMLInputElement).value = String(Math.min(200, state.bps));
   ($('c-bps-n') as HTMLInputElement).value = String(state.bps);
   ($('c-basis') as HTMLSelectElement).value = state.basis;
+  ($('c-spread') as HTMLInputElement).checked = state.spread;
+  ($('c-mk') as HTMLSelectElement).value = state.mkMode;
   ($('c-k') as HTMLSelectElement).value = String(state.k);
   ($('c-seed') as HTMLSelectElement).value = String(state.seed);
   $('controls').querySelectorAll<HTMLInputElement>('.series input').forEach((cb) => (cb.checked = state.visible.includes(cb.value as SeriesId)));
@@ -142,7 +148,7 @@ async function render(): Promise<void> {
   const key = configKey(state.window, state.cov, state.cap);
   root.setAttribute('aria-busy', 'true');
   try {
-    const [strat, monkeys] = await Promise.all([loadStrategies(key), loadMonkeys(state.window, state.freq, state.k, state.seed).catch(() => null)]);
+    const [strat, monkeys] = await Promise.all([loadStrategies(key), loadMonkeys(state.window, state.freq, state.k, state.seed, state.mkMode).catch(() => null)]);
     if (token !== renderToken) return;
     const view = buildView(strat, market, monkeys, state);
     if (view.months.length < 12) {

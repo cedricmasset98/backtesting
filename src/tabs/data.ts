@@ -67,7 +67,7 @@ export function renderData(c: Ctx): void {
       <li><strong>TP</strong> — max (w'μ − r<sub>f</sub>)/√(w'Σw), μ = Bayes-Stein (Jorion, 1986): shrinkage of the sample means towards the GMV mean with intensity φ = λ/(T + λ). If no portfolio has a positive expected excess return, TP holds GMV (flagged). Sensitivity: the same problem with sample means (TP sample μ).</li>
       <li><strong>MDP</strong> — max w'σ/√(w'Σw) (Choueifaty &amp; Coignard, 2008).</li>
       <li><strong>IVP</strong> — w<sub>i</sub> ∝ 1/σ<sub>i</sub>.</li>
-      <li><strong>Monkeys</strong> — 100 random equally weighted portfolios of K stocks re-drawn at each rebalancing date (Monkeys tab).</li>
+      <li><strong>Monkeys</strong> — 100 random equally weighted portfolios of K stocks. <em>Kept</em> (default): the stocks are kept as long as they remain eligible and only those that leave the universe are replaced by new random draws, equal weights being restored at each rebalancing date; <em>Redrawn</em>: K new stocks at each rebalancing date (much higher turnover). Monkeys tab.</li>
     </ul>
     <p>All portfolios are long-only, fully invested, without leverage, with a weight cap of ${Object.keys(m.grid.caps).join(', ')} % (GMV, TP, MDP, ERC: constraint in the optimisation; EW, IVP: excess above the cap redistributed pro rata). No uncapped configuration is published: an unconstrained optimiser can hold one stock, whose return would then be disclosed.
     Optimisations use an exact projection on the capped simplex, spectral projected gradient and a primal active-set QP solver (KKT conditions checked); the ratio problems (TP, MDP) are pseudo-concave so first-order points are global maxima.
@@ -76,7 +76,14 @@ export function renderData(c: Ctx): void {
 
     <h3>5. Timing, rebalancing and costs</h3>
     <p>Decision at the close of month t with data up to t; weights earn returns from t+1. Weights are computed every month; quarterly and annual schedules trade at calendar quarter-ends and year-ends (and at the first decision) and let weights drift otherwise: w<sub>i</sub> ← w<sub>i</sub>(1 + r<sub>i</sub>)/(1 + r<sub>p</sub>).
-    Turnover TO<sub>t</sub> = Σ<sub>i</sub>|w<sub>i,target</sub> − w<sub>i,before</sub>| (buys + sells). Net return: 1 + r<sup>net</sup> = (1 − c·TO<sub>t</sub>)(1 + r<sup>gross</sup>), c in basis points of traded value. Because weights do not depend on c, the browser recomputes net returns exactly for any cost. The initial purchase is not charged, so that every sub-period is comparable.
+    Turnover TO<sub>t</sub> = Σ<sub>i</sub>|w<sub>i,target</sub> − w<sub>i,before</sub>| (buys + sells). Net return: 1 + r<sup>net</sup> = (1 − c·TO<sub>t</sub> − S<sub>t</sub>)(1 + r<sup>gross</sup>), with c a fixed cost in basis points of traded value (commission and stamp duty; default ${m.default.bps ?? 10} bp) and S<sub>t</sub> = Σ<sub>i</sub>|Δw<sub>i</sub>|·s<sub>i,t</sub>/2 the cost of crossing half the bid-ask spread of each traded stock (can be switched off).
+    The spread s<sub>i,t</sub> is estimated from daily close, high and low prices with the Abdi &amp; Ranaldo (2017) estimator over the last ${u.rules.liq_lookback_days} trading days ending at t (no later data). Because one stock's estimate is noisy, the stocks are split at each month-end into ${m.costs?.spread_groups ?? 10} groups of median daily traded value and each stock is assigned the median estimate of its group, so that the spread falls with liquidity.
+    Because weights do not depend on costs, the browser recomputes net returns exactly. The initial purchase is not charged, so that every sub-period is comparable. Market impact is not modelled.</p>
+    ${m.costs ? `<table class="data compact"><thead><tr><th>Liquidity group</th>${m.costs.groups.map((g) => `<th>${g.group}</th>`).join('')}</tr></thead><tbody>
+      <tr><th scope="row">Median daily traded value (CHF)</th>${m.costs.groups.map((g) => `<td>${g.median_daily_value_chf === null ? '—' : Math.round(g.median_daily_value_chf).toLocaleString('en')}</td>`).join('')}</tr>
+      <tr><th scope="row">Estimated spread (median over time)</th>${m.costs.groups.map((g) => `<td>${g.median_spread === null ? '—' : (g.median_spread * 100).toFixed(2) + ' %'}</td>`).join('')}</tr></tbody></table>
+      <p class="muted small">Groups 1 (least liquid) to ${m.costs.spread_groups} over all listed stocks, before the eligibility screens; medians over all month-ends.</p>` : ''}
+    <p>
     Changing the evaluation period never re-optimises: the portfolios keep the weights chosen at their own decision dates.</p>
     <p>Automatic tests (pipeline/tests) check that altering future returns or listings leaves every earlier decision and return unchanged, for every strategy and schedule; that monkeys draws are reproducible and independent of later data; and that the published files contain no raw price field and no return series equal to a single stock's.</p>
 
@@ -92,7 +99,7 @@ export function renderData(c: Ctx): void {
       <li>Strong survivorship bias before ${m.survivorship.controlled_start}, reduced (not eliminated) afterwards; no delisting returns beyond the last traded price.</li>
       <li>The difference with the SPI mixes a universe effect and a weighting effect; only strategy − EW isolates the weighting rule (Overview, Risk &amp; Return).</li>
       <li>Reconstructed universe, not SPI constituents; no free-float capitalisations, hence no replicated cap-weighted portfolio and no size-based liquidity screen.</li>
-      <li>Liquidity is screened on traded value, but trades are assumed at month-end closing prices with proportional costs only (no market impact).</li>
+      <li>Liquidity is screened on traded value, and costs include an estimated half-spread, but trades are assumed at month-end closing prices with proportional costs only (no market impact). For thinly traded stocks the last close may be stale: monthly returns of portfolios holding them are autocorrelated (Report: Dimson betas and Lo Sharpe ratios).</li>
       <li>JKP factors are approximations of Fama-French factors and end in ${Object.values(m.factors).map((f) => f.last).sort()[0]}.</li>
       <li>The grid of windows, frequencies, covariances and caps is fixed; other settings require a pipeline run.</li>
       <li>The comparisons are descriptive. The monkeys distribution depends on the drawing rules; bootstrap tests have low power over ten years.</li>
