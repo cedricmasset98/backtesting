@@ -1,8 +1,8 @@
 /**
  * Plain-language report of the results, generated from the numbers shown on the
- * site for the selected configuration and period (no hard-coded result: every
- * sentence is assembled from the computed statistics, so it follows the
- * settings). One list of blocks feeds both the page and the PDF download.
+ * site for the default configuration and period, i.e. the site as it opens (no
+ * hard-coded result: every sentence is assembled from the computed statistics,
+ * so it follows data updates). One list of blocks feeds the page and the PDF.
  */
 
 import type { SeriesId, StrategiesFile } from '../data/types.ts';
@@ -127,7 +127,7 @@ export async function reportBlocks(c: Ctx, load: (key: string) => Promise<Strate
   const blocks: Block[] = [
     { kind: 'title', text: 'Swiss Equity Portfolio Lab — results in plain language' },
     { kind: 'meta', text: `${configLabel(c)} · ${periodLabel(c)} · ${basisLabel(c)}. Data up to ${m.data_last_date}; results built ${m.generated_at.slice(0, 10)}.` },
-    { kind: 'note', text: 'Written automatically from the results of the site for the settings above. It describes what happened; it is not a forecast or investment advice.' },
+    { kind: 'note', text: 'This report analyses the default settings of the site (as it opens, settings above), whatever is selected in the settings bar. It is written automatically from the computed results: when the data are updated, the text follows. It describes what happened; it is not a forecast or investment advice.' },
   ];
   if (biased) blocks.push({ kind: 'warn', text: `The period starts before ${controlled}: results before that date carry a strong survivorship bias (delisted companies are missing), which flatters the stock-based strategies.` });
   blocks.push(
@@ -224,7 +224,7 @@ export async function renderReport(c: Ctx, el: HTMLElement, load: (key: string) 
   const blocks = await reportBlocks(c, load);
   el.innerHTML = `
   <section class="card report" id="report">
-    <header class="card-head"><div><h2>Results in plain language</h2></div>
+    <header class="card-head"><div><h2>Results in plain language</h2><p class="muted small">Default settings of the site</p></div>
       <div class="tools"><button type="button" id="dl-report" class="primary">Download PDF</button></div></header>
     ${toHtml(blocks)}
   </section>`;
@@ -234,7 +234,7 @@ export async function renderReport(c: Ctx, el: HTMLElement, load: (key: string) 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `swiss_equity_portfolio_lab_report_${c.s.window}m_${c.s.freq}_${c.s.cov}_cap${c.s.cap}_${c.view.period[0]}_${c.view.period[1]}.pdf`;
+    a.download = `swiss_equity_portfolio_lab_report_${c.view.period[0]}_${c.view.period[1]}.pdf`;
     document.body.appendChild(a);
     a.click();
     a.remove();

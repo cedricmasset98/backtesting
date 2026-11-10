@@ -192,10 +192,17 @@ async function render(): Promise<void> {
       case 'robustness':
         await renderRobustness(ctx, loadStrategies);
         break;
-      case 'data':
+      case 'data': {
         renderData(ctx);
-        await renderReport(ctx, $('report-slot'), loadStrategies);
+        // the report always analyses the default settings (the site as it opens)
+        const d = base;
+        const [s0, mk0] = await Promise.all([loadStrategies(configKey(d.window, d.cov, d.cap)), loadMonkeys(d.window, d.freq, d.k, d.seed).catch(() => null)]);
+        if (token !== renderToken) return;
+        const v0 = buildView(s0, market, mk0, d);
+        const ctx0: Ctx = { ...ctx, s: d, strat: s0, monkeys: mk0, view: v0, visible: ALL_SERIES.filter((id) => d.visible.includes(id) && v0.series.has(id)) };
+        await renderReport(ctx0, $('report-slot'), loadStrategies);
         break;
+      }
     }
   } catch (e) {
     if (token === renderToken) root.innerHTML = `<section class="card"><p class="warn">This configuration could not be loaded: ${escapeHtml((e as Error).message)}. It may not have been computed by the pipeline.</p></section>`;
