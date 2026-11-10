@@ -10,7 +10,11 @@ export function renderData(c: Ctx): void {
   const cfg = m.configs.find((x) => x.window === c.s.window && x.cov === c.s.cov && x.cap === c.s.cap);
   const commit = m.market_data_commit ? m.market_data_commit.slice(0, 10) : 'unknown';
   c.root.innerHTML = `
-  <div id="report-slot"><section class="card"><p class="muted">Writing the report…</p></section></div>
+  <section class="card report-link">
+    <div><h2>Results report</h2>
+    <p class="muted small">PDF of the default configuration (${m.default.window}-month window, ${({ M: 'monthly', Q: 'quarterly', A: 'annual' } as const)[m.default.freq]} rebalancing, ${m.survivorship.controlled_start ?? ''} – ${m.last_complete_month}), typeset with LaTeX from the same results as this site, built ${escapeHtml(m.generated_at.slice(0, 10))}.</p></div>
+    <a class="button primary" href="./report/swiss_equity_portfolio_lab_report.pdf" target="_blank" rel="noopener">Open the report (PDF)</a>
+  </section>
   <section class="card prose">
     <h2>Data &amp; Methodology</h2>
     <p class="muted small">Results built on ${escapeHtml(m.generated_at)} from market-data commit <code>${commit}</code>; prices up to ${m.data_last_date}, last complete month ${m.last_complete_month}. Build time ${Math.round(m.build_seconds / 60)} min. Privacy check: <strong>${m.privacy?.status ?? 'n/a'}</strong> (${m.privacy?.files_checked ?? 0} files).</p>

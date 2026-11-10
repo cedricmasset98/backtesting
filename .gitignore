@@ -9,3 +9,5 @@ __pycache__/
 .venv/
 # never commit the private data repository
 market-data/
+build/
+public/report/

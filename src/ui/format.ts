@@ -2,12 +2,17 @@
 
 export function pct(x: number, digits = 2): string {
   if (!Number.isFinite(x)) return '—';
-  return `${(x * 100).toFixed(digits)}%`;
+  return `${noNegZero((x * 100).toFixed(digits))}%`;
 }
 
 export function num(x: number, digits = 3): string {
   if (!Number.isFinite(x)) return '—';
-  return x.toFixed(digits);
+  return noNegZero(x.toFixed(digits));
+}
+
+/** '-0.00' → '0.00' (a value that rounds to zero carries no sign). */
+function noNegZero(s: string): string {
+  return /^-0\.?0*$/.test(s) ? s.slice(1) : s;
 }
 
 export function pval(p: number): string {

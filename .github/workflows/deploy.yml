@@ -141,14 +141,24 @@ jobs:
       - name: TypeScript tests (statistics, costs, factor models vs statsmodels)
         run: npm test
 
+      - name: LaTeX (pdflatex, pgfplots)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends latexmk lmodern texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-pictures > /dev/null
+
+      - name: Results report (PDF of the default configuration)
+        run: npm run report
+
       - name: Build the site
         run: npm run build
 
       - name: Check the published files
         run: |
           bad=$(find dist -type f ! \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.map' -o -name '*.json' -o -name '*.svg' -o -name '*.ico' \))
+          bad=$(echo "$bad" | grep -vx 'dist/report/swiss_equity_portfolio_lab_report.pdf' || true)
           if [ -n "$bad" ]; then echo "::error::Unexpected files in dist: $bad"; exit 1; fi
           test -f dist/data/manifest.json
+          test -f dist/report/swiss_equity_portfolio_lab_report.pdf
           python - <<'PY'
           import json
           m = json.load(open("dist/data/manifest.json"))

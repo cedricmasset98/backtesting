@@ -4,29 +4,7 @@ import Plotly from 'plotly.js-dist-min';
 import type { SeriesId } from '../data/types.ts';
 import { download } from './export.ts';
 
-export const LABEL: Record<SeriesId, string> = {
-  CW: 'Market-Cap Weighted (SPI TR)',
-  EW: 'Equally-Weighted',
-  GMV: 'Global Minimum Variance',
-  ERC: 'Equal Risk Contribution',
-  TP: 'Tangency Portfolio',
-  MDP: 'Most Diversified Portfolio',
-  IVP: 'Inverse Volatility',
-  MONKEYS: "Malkiel's Monkeys (average)",
-  TP_SAMPLE: 'Tangency (sample mean, sensitivity)',
-};
-
-export const SHORT: Record<SeriesId, string> = {
-  CW: 'CW (SPI)',
-  EW: 'EW',
-  GMV: 'GMV',
-  ERC: 'ERC',
-  TP: 'TP',
-  MDP: 'MDP',
-  IVP: 'IVP',
-  MONKEYS: 'Monkeys',
-  TP_SAMPLE: 'TP (sample μ)',
-};
+export { LABEL, SHORT } from './labels.ts';
 
 export interface Theme {
   fg: string;

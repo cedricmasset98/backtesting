@@ -17,7 +17,6 @@ import { renderMonkeys } from './tabs/monkeys.ts';
 import { renderComposition } from './tabs/composition.ts';
 import { renderRobustness } from './tabs/robustness.ts';
 import { renderData } from './tabs/data.ts';
-import { renderReport } from './tabs/report.ts';
 
 const TAB_LABEL: Record<TabId, string> = {
   overview: 'Overview',
@@ -194,13 +193,6 @@ async function render(): Promise<void> {
         break;
       case 'data': {
         renderData(ctx);
-        // the report always analyses the default settings (the site as it opens)
-        const d = base;
-        const [s0, mk0] = await Promise.all([loadStrategies(configKey(d.window, d.cov, d.cap)), loadMonkeys(d.window, d.freq, d.k, d.seed).catch(() => null)]);
-        if (token !== renderToken) return;
-        const v0 = buildView(s0, market, mk0, d);
-        const ctx0: Ctx = { ...ctx, s: d, strat: s0, monkeys: mk0, view: v0, visible: ALL_SERIES.filter((id) => d.visible.includes(id) && v0.series.has(id)) };
-        await renderReport(ctx0, $('report-slot'), loadStrategies);
         break;
       }
     }

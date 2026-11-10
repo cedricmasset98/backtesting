@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --no-warnings --test tests/*.test.ts",
     "data": "python -m pipeline.build && python -m pipeline.statsref",
+    "report": "node --experimental-strip-types --no-warnings tools/build_report.ts",
     "data:quick": "python -m pipeline.build --quick && python -m pipeline.statsref"
   },
   "dependencies": {
