@@ -5,10 +5,12 @@
  *
  * Resampling paired months (blocks of random geometric length, mean b) keeps
  * the cross-correlation between the two strategies and part of the serial
- * dependence. The interval is the percentile interval of the bootstrap
- * distribution of ΔSR; the two-sided p-value is 2·min(P*(ΔSR* ≤ 0), P*(ΔSR* ≥ 0))
- * computed on the bootstrap distribution re-centred on zero (Ledoit & Wolf, 2008,
- * use studentised statistics; this simpler version is documented as such).
+ * dependence. The two-sided p-value uses the absolute centred bootstrap
+ * deviation |ΔSR* − ΔSR|. Its matching symmetric confidence interval is
+ * ΔSR ± q_level(|ΔSR* − ΔSR|), so p < 0.05 and exclusion of zero from the
+ * 95 % interval agree, except for discrete/rounded boundary cases.
+ * This is an unstudentised bootstrap sensitivity test, not a claim of exact
+ * finite-sample coverage.
  */
 
 import { mean, sd } from './metrics.ts';
