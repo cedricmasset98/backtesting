@@ -12,11 +12,10 @@
 import type { MonkeyMode, MonkeysFile, SeriesId, StrategiesFile } from '../data/types.ts';
 import { holm, sharpeDiffBootstrap } from '../engine/bootstrap.ts';
 import { breuschPagan, defaultLjungBoxLags, jarqueBera, ljungBox } from '../engine/diagnostics.ts';
-import { fitModel, FACTORS, MODEL_IDS, MODELS, type FitOutcome, type ModelId } from '../engine/factors.ts';
+import { fitModel, FACTORS, laggedMarketSensitivity, MODEL_IDS, MODELS, type FitOutcome, type ModelId } from '../engine/factors.ts';
 import { cumulativeCosts, drawdowns, mean, netReturns, percentileRank, perfStats, quantile, sd, wealth } from '../engine/metrics.ts';
 import { configKey } from '../data/loader.ts';
 import { dimsonFit, loSharpe } from '../engine/stale.ts';
-import { laggedMarketSensitivity } from '../engine/factors.ts';
 import { availableRange, buildView, wealthDates } from '../model.ts';
 import { SHORT } from '../ui/labels.ts';
 import { configLabel, decomposition, periodLabel, basisLabel, stats, type ReportCtx } from '../ui/context.ts';
@@ -408,9 +407,9 @@ export async function reportBlocks(c: ReportCtx, load: ReportLoaders): Promise<B
     }));
     const usable = checks.filter((x) => x.check.base.ok && x.check.lagged.ok);
     if (usable.length) {
-      const adjusted = holm(usable.map((x) => x.check.lagged.ok ? x.check.lagged.result.pvalue[0] : 1));
+      const adjusted = holm(usable.map((x) => (x.check.lagged as OkFit).result.pvalue[0]));
       blocks.push(
-        { kind: 'h2', text: 'Multifactor alpha and delayed market exposure' },
+        { kind: 'h3', text: 'Multifactor alpha and delayed market exposure' },
         { kind: 'p', text: 'The usual factor regression may misattribute delayed price reactions to alpha. As a sensitivity check, the main factor model (' + MODELS[main].label + ') is re-estimated after adding the preceding calendar month of SPI excess returns. Both the ordinary and lag-augmented regressions use **exactly the same months**. This is an exploratory diagnostic, not proof of stale prices and not a correction to execution prices.' },
         {
           kind: 'table',
@@ -418,9 +417,8 @@ export async function reportBlocks(c: ReportCtx, load: ReportLoaders): Promise<B
           caption: MODELS[main].label + ': alpha sensitivity to one lag of the market factor',
           head: ['Portfolio', 'Alpha base p.a.', 'Alpha + lag p.a.', 'Holm p (alpha)', 'Lagged MKT beta', 'p (lag)', 'Months'],
           rows: usable.map((x, i) => {
-            if (!x.check.base.ok || !x.check.lagged.ok) return [];
-            const a = x.check.base.result;
-            const b = x.check.lagged.result;
+            const a = (x.check.base as OkFit).result;
+            const b = (x.check.lagged as OkFit).result;
             const k = b.names.indexOf('MKT_L1');
             return [S(x.id), signedPct(12 * a.beta[0], 2), signedPct(12 * b.beta[0], 2), fp(adjusted[i]), num(b.beta[k], 2), fp(b.pvalue[k]), String(b.n)];
           }),

@@ -7,8 +7,9 @@
  * the cross-correlation between the two strategies and part of the serial
  * dependence. The two-sided p-value uses the absolute centred bootstrap
  * deviation |ΔSR* − ΔSR|. Its matching symmetric confidence interval is
- * ΔSR ± q_level(|ΔSR* − ΔSR|), so p < 0.05 and exclusion of zero from the
- * 95 % interval agree, except for discrete/rounded boundary cases.
+ * ΔSR ± q_level(|ΔSR* − ΔSR|), with the quantile taken as the order statistic
+ * ⌈level·(B + 1)⌉, so that p < 1 − level exactly when the interval excludes zero
+ * (tests/metrics.test.ts).
  * This is an unstudentised bootstrap sensitivity test, not a claim of exact
  * finite-sample coverage.
  */
