@@ -17,6 +17,7 @@ import { renderMonkeys } from './tabs/monkeys.ts';
 import { renderComposition } from './tabs/composition.ts';
 import { renderRobustness } from './tabs/robustness.ts';
 import { renderData } from './tabs/data.ts';
+import { renderReport } from './tabs/report.ts';
 
 const TAB_LABEL: Record<TabId, string> = {
   overview: 'Overview',
@@ -27,7 +28,7 @@ const TAB_LABEL: Record<TabId, string> = {
   monkeys: "Malkiel's Monkeys",
   composition: 'Portfolio Composition',
   robustness: 'Robustness',
-  data: 'Data & Methodology',
+  data: 'Report & Methodology',
 };
 
 let manifest: Manifest;
@@ -193,6 +194,7 @@ async function render(): Promise<void> {
         break;
       case 'data':
         renderData(ctx);
+        await renderReport(ctx, $('report-slot'), loadStrategies);
         break;
     }
   } catch (e) {

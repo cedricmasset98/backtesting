@@ -128,7 +128,7 @@ export function renderFactors(c: Ctx): void {
   </section>
 
   <section class="card"><h3>Residual diagnostics — ${LABEL[pf]}, ${MODELS[s.model].label}</h3>
-    <div class="grid2"><div id="diag-tests"></div><div id="ch-qq" class="chart"></div></div>
+    <div class="grid2"><div id="diag-tests" class="minw0"></div><div id="ch-qq" class="chart"></div></div>
   </section>`;
 
   const q = <T extends HTMLElement>(sel: string) => c.root.querySelector<T>(sel)!;
@@ -202,8 +202,8 @@ export function renderFactors(c: Ctx): void {
     const res = sel.result;
     const lb = ljungBox(res.resid, defaultLjungBoxLags(res.n));
     const tests = [jarqueBera(res.resid), breuschPagan(res.resid, smp.x), lb];
-    q('#diag-tests').innerHTML = `<table class="data"><thead><tr><th>Test</th><th>H0</th><th>Statistic</th><th>df</th><th>p-value</th></tr></thead><tbody>
-      ${tests.map((x) => `<tr><td>${x.name}</td><td class="small">${x.h0}</td><td>${num(x.stat, 2)}</td><td>${x.df}</td><td>${pval(x.pvalue)}</td></tr>`).join('')}</tbody></table>
+    q('#diag-tests').innerHTML = `<div class="table-wrap"><table class="data diag"><thead><tr><th>Test (null hypothesis)</th><th>Statistic (df)</th><th>p-value</th></tr></thead><tbody>
+      ${tests.map((x) => `<tr><td><strong>${x.name}</strong><br/><span class="muted small">H0: ${x.h0}</span></td><td>${num(x.stat, 2)} (${x.df})</td><td>${pval(x.pvalue)}</td></tr>`).join('')}</tbody></table></div>
       <p class="note">With autocorrelated or heteroskedastic residuals (small p-values for Ljung-Box or Breusch-Pagan), prefer Newey-West or HC3 standard errors. Non-normal residuals matter little for inference with ${res.n} observations.</p>`;
     const qq = qqPoints(res.resid, res.sigma);
     const lim = Math.max(...qq.theoretical.map(Math.abs), ...qq.sample.map(Math.abs));

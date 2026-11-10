@@ -152,3 +152,18 @@ table.academic thead th:first-child { text-align: left; }
 .seg button[aria-pressed='true'] { background: var(--accent); color: #fff; }
 [data-theme='dark'] .seg button[aria-pressed='true'] { color: #0e1115; }
 .banner button { margin-left: 8px; font-size: 12px; padding: 2px 8px; }
+.minw0 { min-width: 0; }
+table.data.diag td:first-child { white-space: normal; }
+.holdings { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+@media (max-width: 600px) {
+  table.data { font-size: 12px; }
+  table.data th, table.data td { padding: 4px 6px; }
+  .card { padding: 12px; }
+}
+/* plain-language report */
+.report h3 { margin-top: 16px; }
+.report p, .report li { max-width: 860px; line-height: 1.6; }
+.report .keyfigs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; margin: 10px 0; }
+.report .keyfigs div { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.report .keyfigs strong { display: block; font-size: 18px; }
+.grid2 > * { min-width: 0; }
