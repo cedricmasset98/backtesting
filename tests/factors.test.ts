@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { attribution, buildSample, fitModel, MODEL_IDS, type FactorData } from '../src/engine/factors.ts';
+import { attribution, buildSample, fitModel, laggedMarketSensitivity, MODEL_IDS, type FactorData } from '../src/engine/factors.ts';
 import { mulberry32 } from '../src/engine/bootstrap.ts';
 
 function dataset(n: number): { data: FactorData; months: string[]; r: (number | null)[] } {
@@ -59,5 +59,37 @@ test('attribution adds up to the mean excess return', () => {
     const total = attribution(fit).reduce((s, a) => s + a.value, 0);
     const meanEx = fit.sample.y.reduce((s, v) => s + v, 0) / fit.sample.y.length;
     assert.ok(Math.abs(total - meanEx) < 1e-14);
+  }
+});
+
+test('lagged-market multifactor control uses the same sample and detects delayed beta', () => {
+  const { data, months, r } = dataset(180);
+  const mkt = data.factors.MKT as number[];
+  for (let t = 0; t < r.length; t++) {
+    r[t] = 0.001 + 0.002 + 0.4 * mkt[t] + (t ? 0.35 * mkt[t - 1] : 0) + 0.002 * Math.sin(t * 1.79);
+  }
+  const out = laggedMarketSensitivity(months, r, data, 'FF5MOM', 'HAC');
+  assert.ok(out.base.ok && out.lagged.ok);
+  if (out.base.ok && out.lagged.ok) {
+    assert.deepEqual(out.base.sample.months, out.lagged.sample.months);
+    assert.equal(out.base.result.n, out.lagged.result.n);
+    assert.equal(out.lagged.result.names.at(-1), 'MKT_L1');
+    const lag = out.lagged.result.beta.at(-1)!;
+    assert.ok(Math.abs(lag - 0.35) < 0.06, `lagged beta ${lag} should be near 0.35`);
+  }
+});
+
+test('lagged-market control uses the preceding calendar month, never the prior available row', () => {
+  const { data, months, r } = dataset(60);
+  // The market factor for May 2001 is missing: June 2001 cannot use April
+  // as a substitute for the calendar lag.
+  const ix = months.indexOf('2001-05');
+  data.factors.MKT[ix] = null;
+  const out = laggedMarketSensitivity(months, r, data, 'FF5MOM', 'HAC');
+  assert.ok(out.base.ok && out.lagged.ok);
+  if (out.base.ok && out.lagged.ok) {
+    assert.ok(!out.lagged.sample.months.includes('2001-05'));
+    assert.ok(!out.lagged.sample.months.includes('2001-06'));
+    assert.deepEqual(out.base.sample.months, out.lagged.sample.months);
   }
 });
