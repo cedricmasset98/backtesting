@@ -12,7 +12,7 @@
 import type { MonkeyMode, MonkeysFile, SeriesId, StrategiesFile } from '../data/types.ts';
 import { holm, sharpeDiffBootstrap } from '../engine/bootstrap.ts';
 import { breuschPagan, defaultLjungBoxLags, jarqueBera, ljungBox } from '../engine/diagnostics.ts';
-import { fitModel, FACTORS, MODEL_IDS, MODELS, type FitOutcome, type ModelId } from '../engine/factors.ts';
+import { fitModel, FACTORS, laggedMarketSensitivity, MODEL_IDS, MODELS, type FitOutcome, type ModelId } from '../engine/factors.ts';
 import { cumulativeCosts, drawdowns, mean, netReturns, percentileRank, perfStats, quantile, sd, wealth } from '../engine/metrics.ts';
 import { configKey } from '../data/loader.ts';
 import { dimsonFit, loSharpe } from '../engine/stale.ts';
@@ -396,6 +396,37 @@ export async function reportBlocks(c: ReportCtx, load: ReportLoaders): Promise<B
         note: `Monthly excess returns over ${periodLabel(c)}; the CAPM and Dimson regressions use the same months (the first is dropped), with Newey–West standard errors; stars as in Table [[tab:ff]]. A positive $\\hat\\rho_1$ with $\\beta_D > \\beta$ indicates stale prices; the Lo volatility is the volatility implied by the autocorrelation.`,
       },
     );
+  }
+
+  // 5c. Matched-sample multifactor diagnostic of delayed market exposure.
+  // This is a sensitivity check, not a correction to the underlying prices.
+  if (main) {
+    const checks = strategies.map((id) => ({
+      id,
+      check: laggedMarketSensitivity(view.months, view.series.get(id)!.r, fdata, main, 'HAC'),
+    }));
+    const usable = checks.filter((x) => x.check.base.ok && x.check.lagged.ok);
+    if (usable.length) {
+      const adjusted = holm(usable.map((x) => (x.check.lagged as OkFit).result.pvalue[0]));
+      blocks.push(
+        { kind: 'h3', text: 'Multifactor alpha and delayed market exposure' },
+        { kind: 'p', text: 'The usual factor regression may misattribute delayed price reactions to alpha. As a sensitivity check, the main factor model (' + MODELS[main].label + ') is re-estimated after adding the preceding calendar month of SPI excess returns. Both the ordinary and lag-augmented regressions use **exactly the same months**. This is an exploratory diagnostic, not proof of stale prices and not a correction to execution prices.' },
+        {
+          kind: 'table',
+          label: 'tab:lagged-factor',
+          caption: MODELS[main].label + ': alpha sensitivity to one lag of the market factor',
+          head: ['Portfolio', 'Alpha base p.a.', 'Alpha + lag p.a.', 'Holm p (alpha)', 'Lagged MKT beta', 'p (lag)', 'Months'],
+          rows: usable.map((x, i) => {
+            const a = (x.check.base as OkFit).result;
+            const b = (x.check.lagged as OkFit).result;
+            const k = b.names.indexOf('MKT_L1');
+            return [S(x.id), signedPct(12 * a.beta[0], 2), signedPct(12 * b.beta[0], 2), fp(adjusted[i]), num(b.beta[k], 2), fp(b.pvalue[k]), String(b.n)];
+          }),
+          note: 'Newey-West standard errors; unadjusted p-value for lagged market loading, Holm-adjusted alpha p-value over the tested strategies. The base column uses the matched sample, not the longer original regression sample. A reduced alpha is consistent with delayed price adjustment but does not establish its cause.',
+        },
+        { kind: 'p', text: 'Interpret alongside the Dimson and Lo diagnostics in Table [[tab:stale]]. A persistent alpha is still historical evidence, not a prospective trading opportunity; omitted risk factors and valuation conventions remain possible explanations.' },
+      );
+    }
   }
 
   // 6. Monkeys

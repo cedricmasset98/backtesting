@@ -89,3 +89,50 @@ export function attribution(fit: Extract<FitOutcome, { ok: true }>): { name: str
     return { name, value: result.beta[j] * m };
   });
 }
+
+/**
+ * Lagged-market sensitivity on an EXACTLY matched sample.
+ *
+ * Stale prices may load on the preceding calendar month's Swiss market return.
+ * The control and lag-augmented regressions therefore use identical observations
+ * and differ only by the MKT_L1 regressor. We do not substitute the previous
+ * available factor observation if a calendar month is missing.
+ *
+ * This is a diagnostic, not a correction to the underlying return series.
+ */
+export function laggedMarketSensitivity(
+  months: string[],
+  r: (number | null)[],
+  data: FactorData,
+  model: ModelId,
+  cov: CovType,
+): { base: FitOutcome; lagged: FitOutcome } {
+  const complete = buildSample(months, r, data, model);
+  const monthIndex = new Map(data.months.map((m, i) => [m, i]));
+  const sample: Sample = { months: [], y: [], x: [], names: [...complete.names, 'MKT_L1'] };
+  for (let t = 0; t < complete.months.length; t++) {
+    const [year, month] = complete.months[t].split('-').map(Number);
+    const prev = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
+    const i = monthIndex.get(prev);
+    const marketLag = i === undefined ? null : data.factors.MKT?.[i];
+    if (marketLag === null || marketLag === undefined || !Number.isFinite(marketLag)) continue;
+    sample.months.push(complete.months[t]);
+    sample.y.push(complete.y[t]);
+    sample.x.push([...complete.x[t], marketLag]);
+  }
+
+  const fit = (withLag: boolean): FitOutcome => {
+    const names = withLag ? sample.names : complete.names;
+    const x = withLag ? sample.x : sample.x.map((row) => row.slice(0, -1));
+    if (sample.y.length <= names.length + 1) {
+      return { ok: false, model, n: sample.y.length, reason: `Only ${sample.y.length} matched months for ${MODELS[model].label} with lagged MKT (need more than ${names.length + 1}).` };
+    }
+    try {
+      const s: Sample = { months: sample.months, y: sample.y, x, names };
+      return { ok: true, model, sample: s, result: ols(s.y, s.x, names, { cov }) };
+    } catch (e) {
+      return { ok: false, model, n: sample.y.length, reason: (e as Error).message };
+    }
+  };
+  return { base: fit(false), lagged: fit(true) };
+}
