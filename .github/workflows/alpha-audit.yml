@@ -7,6 +7,7 @@ on:
       - .github/workflows/alpha-audit.yml
       - tools/alpha_audit.py
       - pipeline/tests/test_alpha_audit.py
+      - tests/alpha-audit-published.test.ts
   workflow_dispatch:
 
 permissions:
@@ -62,6 +63,14 @@ jobs:
               print('MONKEYS_EW',r['results']['monkeys_vs_ew'][cov])
               print('HOLM',r['results']['multiple_models'][cov]['FF5MOMBAB']['holm_p'])
           PY
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Cross-check live browser engine on real data against statsmodels
+        run: |
+          npm ci --no-audit --no-fund
+          node --experimental-strip-types --no-warnings --test tests/alpha-audit-published.test.ts
       - name: Save aggregate audit results, no stock-level data
         uses: actions/upload-artifact@v4
         with:
