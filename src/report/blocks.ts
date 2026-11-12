@@ -15,6 +15,7 @@ import { breuschPagan, defaultLjungBoxLags, jarqueBera, ljungBox } from '../engi
 import { fitModel, FACTORS, laggedMarketSensitivity, MODEL_IDS, MODELS, type FitOutcome, type ModelId } from '../engine/factors.ts';
 import { cumulativeCosts, drawdowns, mean, netReturns, percentileRank, perfStats, quantile, sd, wealth } from '../engine/metrics.ts';
 import { configKey } from '../data/loader.ts';
+import { factorMethodology } from './factorDoc.ts';
 import { dimsonFit, loSharpe } from '../engine/stale.ts';
 import { availableRange, buildView, wealthDates } from '../model.ts';
 import { SHORT } from '../ui/labels.ts';
@@ -31,7 +32,7 @@ export type Block =
   | { kind: 'meta' | 'note' | 'warn' | 'h2' | 'h3' | 'p'; text: string }
   | { kind: 'eq'; tex: string; label?: string }
   | { kind: 'bullets'; items: string[] }
-  | { kind: 'table'; label: string; caption: string; head: string[]; rows: string[][]; sub?: boolean[]; starred?: boolean; note?: string }
+  | { kind: 'table'; label: string; caption: string; head: string[]; rows: string[][]; sub?: boolean[]; starred?: boolean; align?: string; note?: string }
   | { kind: 'figure'; label: string; caption: string; chart: ChartSpec; note?: string };
 
 /** Fixed light palette (same order as the site). */
@@ -270,14 +271,19 @@ export async function reportBlocks(c: ReportCtx, load: ReportLoaders): Promise<B
   );
 
   // 5. Factor analysis
-  blocks.push({ kind: 'h2', text: 'Factor analysis' });
+  blocks.push(
+    { kind: 'h2', text: 'Factor analysis' },
+    { kind: 'p', text: 'The factor models explain the excess return of each portfolio by its exposures to the market and to six Swiss long–short factors. The factors are defined first; the estimates follow.' },
+    ...factorMethodology(m),
+    { kind: 'h3', text: 'Regressions' },
+  );
   if (main) {
     const f0 = mainFit(strategies[0]);
     const fac = MODELS[main].factors;
     const rhs = fac.map((f) => L`\beta_{\text{${f}}}\,\text{${f}}_t`);
     const split = rhs.length > 3 ? Math.ceil(rhs.length / 2) : rhs.length;
     blocks.push(
-      { kind: 'p', text: `Monthly excess returns are regressed on the ${MODELS[main].label} factors: the market factor $\\text{MKT} = R_{\\text{SPI}} - R_f$ and the Swiss JKP long–short factors ${list(fac.filter((f) => f !== 'MKT').map((f) => ({ SMB: 'SMB (size)', HML: 'HML (value)', RMW: 'RMW (profitability)', CMA: 'CMA (investment)', MOM: 'MOM (momentum)', BAB: 'BAB (low beta minus high beta, the JKP version of betting against beta)' } as Record<string, string>)[f] ?? f))}, in CHF. BAB is included because the low-risk strategies (GMV, MDP, IVP) are expected to load on it: without it, the low-beta premium would show up as alpha.` },
+      { kind: 'p', text: `Monthly excess returns are regressed on the ${MODELS[main].label} factors of Table [[tab:factors]]. BAB is included because the low-risk strategies (GMV, MDP, IVP) are expected to load on it: without it, the low-beta premium would show up as alpha.` },
       {
         kind: 'eq',
         label: 'eq:ff',
@@ -525,7 +531,7 @@ export async function reportBlocks(c: ReportCtx, load: ReportLoaders): Promise<B
         biased ? `Strong survivorship bias before ${controlled}.` : `Survivorship bias reduced but not necessarily eliminated from ${controlled} (delistings are covered from then; no delisting returns beyond the last price).`,
         'Reconstructed universe of liquid Swiss shares, not the historical SPI constituents; the SPI is the official index (no costs).',
         'Proportional costs (fixed cost and estimated half-spread) at month-end closing prices, no market impact; for thinly traded stocks the closing price may be stale (Table [[tab:stale]]).',
-        'JKP factors approximate, but do not replicate, the Fama–French factors.',
+        'JKP factors approximate, but do not replicate, the Fama–French and Frazzini–Pedersen factors; BAB in particular is not beta-neutral (Table [[tab:factors]]).',
         'Descriptive comparison of a configuration fixed in advance; selecting the best configuration ex post would be data snooping.',
       ],
     },
