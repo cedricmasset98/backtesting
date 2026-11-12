@@ -119,7 +119,7 @@ ${marks}
 function table(b: Extract<Block, { kind: 'table' }>): string {
   const n = b.head.length;
   const num = b.starred ? 'c' : 'r'; // coefficients centred over their t-statistics
-  const spec = `l${num.repeat(n - 1)}`;
+  const spec = b.align ?? `l${num.repeat(n - 1)}`;
   const head = b.head.map(tx).join(' & ');
   const rows = b.rows
     .map((r, i) => {
