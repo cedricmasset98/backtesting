@@ -521,7 +521,10 @@ export async function reportBlocks(c: ReportCtx, load: ReportLoaders): Promise<B
     },
   );
 
-  // 9. Limitations
+  // 9. Synthesis: what the results support and what they do not
+  blocks.push(...(await synthesis()));
+
+  // 10. Limitations
   blocks.push(
     { kind: 'h2', text: 'Limitations' },
     {
@@ -537,4 +540,132 @@ export async function reportBlocks(c: ReportCtx, load: ReportLoaders): Promise<B
     },
   );
   return blocks;
+
+  /**
+   * Conclusions drawn from the whole precomputed grid (every window, frequency,
+   * covariance estimator and cap) over the report period, with the default costs.
+   * Every statement is conditional on the numbers: the wording changes with the data.
+   */
+  async function synthesis(): Promise<Block[]> {
+    type GridStat = { sharpe: number; cagr: number; vol: number };
+    const grid = new Map<SeriesId, GridStat[]>(strategies.map((id) => [id, []]));
+    let spiG: GridStat | null = null;
+    let gridPeriod = '';
+    let nConfigs = 0;
+    try {
+      const keys = m.grid.windows.flatMap((w) => m.grid.cov.flatMap((cv) => Object.keys(m.grid.caps).map((cp) => configKey(w, cv, cp))));
+      const files = await Promise.all(keys.map((k) => load.strategies(k)));
+      const ranges = files.map((f) => availableRange(f, c.market));
+      const start = [s.start, ...ranges.map((r) => r[0])].sort().at(-1)!;
+      const end = [s.end, ...ranges.map((r) => r[1])].sort()[0];
+      gridPeriod = `${start} – ${end}`;
+      for (const f of files) {
+        for (const fq of m.grid.freqs) {
+          const v = buildView(f, c.market, null, { ...s, freq: fq, start, end });
+          const g = (id: SeriesId) => { const p = perfStats(v.series.get(id)!.r, v.rf, v.spi); return { sharpe: p.sharpe, cagr: p.cagr, vol: p.vol }; };
+          spiG = g('CW');
+          for (const id of strategies) grid.get(id)!.push(g(id));
+          nConfigs++;
+        }
+      }
+    } catch {
+      nConfigs = 0;
+    }
+    if (!nConfigs || !spiG) return [];
+    const spiGrid: GridStat = spiG;
+    const share = (id: SeriesId, f: (x: GridStat) => boolean) => grid.get(id)!.filter(f).length;
+    const srWins = (id: SeriesId) => share(id, (x) => x.sharpe > spiGrid.sharpe);
+    const cagrWins = (id: SeriesId) => share(id, (x) => x.cagr > spiGrid.cagr);
+    const volLower = (id: SeriesId) => share(id, (x) => x.vol < spiGrid.vol);
+    const srRange = (id: SeriesId) => { const x = grid.get(id)!.map((g) => g.sharpe); return [Math.min(...x), quantile(x, 0.5), Math.max(...x)]; };
+    const frac = (k: number) => `${k} of the ${nConfigs}`;
+    const robustShare = 0.9;
+
+    // Most robust strategy: largest share of configurations with a higher Sharpe ratio than the SPI.
+    const best = [...strategies].sort((a, b) => srWins(b) - srWins(a) || srRange(b)[1] - srRange(a)[1])[0];
+    const robustBest = srWins(best) >= robustShare * nConfigs;
+    const b = ps(best);
+    const bi = strategies.indexOf(best);
+    const supported: string[] = [];
+    const notSupported: string[] = [];
+
+    if (robustBest) {
+      const volRatio = b.vol / spi.vol;
+      supported.push(`**${S(best)}: lower risk, robust across the grid.** Over the report period it earned ${pct(b.cagr, 1)} p.a. against ${pct(spi.cagr, 1)} for the SPI, with a volatility of ${pct(b.vol, 1)} against ${pct(spi.vol, 1)} (${Math.round(100 * (1 - volRatio))} % ${volRatio < 1 ? 'less' : 'more'} risk) and a maximum drawdown of ${pct(b.maxDD, 1)} against ${pct(spi.maxDD, 1)}. Its Sharpe ratio exceeds the SPI's in ${frac(srWins(best))} configurations of the grid (${gridPeriod}; all windows, frequencies, covariance estimators and caps), and its volatility is lower in ${frac(volLower(best))}.`);
+      if (cagrWins(best) < robustShare * nConfigs) {
+        supported.push(`**The gain is lower risk, not higher return.** The compound return of ${S(best)} exceeds the SPI's in only ${frac(cagrWins(best))} configurations: the evidence is about risk for a comparable return.`);
+      }
+    } else {
+      notSupported.push(`**No weighting rule stands out robustly.** The most consistent strategy, ${S(best)}, has a higher Sharpe ratio than the SPI in ${frac(srWins(best))} configurations of the grid (${gridPeriod}), short of ${Math.round(100 * robustShare)} %.`);
+    }
+
+    // Low-beta premium behind the best strategy (factor models with and without BAB).
+    const withBab = fits.get(best)?.FF5MOMBAB;
+    const noBab = fits.get(best)?.FF5MOM;
+    if (robustBest && withBab?.ok && noBab?.ok) {
+      const kBab = withBab.result.names.indexOf('BAB');
+      const aNo = 12 * noBab.result.beta[0];
+      const aWith = 12 * withBab.result.beta[0];
+      const bBab = withBab.result.beta[kBab];
+      const tBab = withBab.result.stat[kBab];
+      if (bBab > 0 && withBab.result.pvalue[kBab] < 0.05) {
+        supported.push(`**It is largely the low-risk anomaly.** The ${S(best)} loading on the betting-against-beta factor is ${num(bBab, 2)} ($t = ${num(tBab, 1)}$); adding BAB to FF5+MOM moves its alpha from ${signedPct(aNo, 1)} to ${signedPct(aWith, 1)} p.a. This matches the low-volatility and betting-against-beta literature (Frazzini and Pedersen, 2014) rather than a new effect.`);
+      }
+    }
+    const st0 = stale.find((x) => x.id === best);
+    if (robustBest && st0?.dim) {
+      const smallGap = st0.dim.betaSum - st0.dim.capm.beta[1] < 0.15 && Math.abs(st0.lo.rho) < 0.15;
+      supported.push(smallGap
+        ? `**Not a stale-price artefact.** The autocorrelation of ${S(best)} is ${num(st0.lo.rho, 2)} and its Dimson beta ${num(st0.dim.betaSum, 2)} against a CAPM beta of ${num(st0.dim.capm.beta[1], 2)} (Table [[tab:stale]]): thin trading explains little of its lower risk.`
+        : `**Partly a stale-price effect.** The Dimson beta of ${S(best)} (${num(st0.dim.betaSum, 2)}) exceeds its CAPM beta (${num(st0.dim.capm.beta[1], 2)}) and its autocorrelation is ${num(st0.lo.rho, 2)}: part of its lower measured risk may come from thin trading (Table [[tab:stale]]).`);
+    }
+
+    // Equal weighting and the monkeys: universe and small-cap tilt.
+    if (strategies.includes('EW')) {
+      const ew = ps('EW');
+      const ewWins = srWins('EW');
+      const mkAbove = hasMk ? mk.filter((x) => x.sharpe > spi.sharpe).length / mk.length : NaN;
+      const sentence = `Its Sharpe ratio (${num(ew.sharpe, 2)}) is ${ew.sharpe < spi.sharpe ? 'below' : 'above'} the SPI's (${num(spi.sharpe, 2)}) and exceeds it in ${frac(ewWins)} configurations${hasMk ? `; ${Math.round(100 * mkAbove)} % of the monkey portfolios beat the SPI's Sharpe ratio` : ''}.`;
+      if (ewWins <= (1 - robustShare) * nConfigs) supported.push(`**Equal weighting did not help.** ${sentence} Spreading the money over the reconstructed universe (more small caps than the SPI) cost risk-adjusted return over this period.`);
+      else if (ewWins >= robustShare * nConfigs) supported.push(`**Equal weighting helped.** ${sentence}`);
+      else notSupported.push(`**Equal weighting gives mixed results.** ${sentence}`);
+    }
+
+    // Tangency portfolio: sensitivity to the estimates.
+    if (strategies.includes('TP')) {
+      const [lo, med, hi] = srRange('TP');
+      if (hi - lo > 0.4) supported.push(`**Optimising expected returns is not reliable.** The Sharpe ratio of TP ranges from ${num(lo, 2)} to ${num(hi, 2)} across the grid (median ${num(med, 2)}): its result depends on the estimation choices, as DeMiguel, Garlappi and Uppal (2009) find for mean–variance portfolios.`);
+    }
+
+    // What the data cannot establish.
+    notSupported.push(boots[bi].pvalue < 0.05 && bootAdj[bi] < 0.05
+      ? `The Sharpe ratio difference between ${S(best)} and the SPI is significant at 5 % after the Holm correction (adjusted $p = ${fp(bootAdj[bi])}$); with ${num(view.months.length / 12, 1)} years of data it should still be confirmed out of sample.`
+      : `**Statistical significance.** The Sharpe ratio difference between ${S(best)} and the SPI is not significant (bootstrap $p = ${fp(boots[bi].pvalue)}$, Holm-adjusted ${fp(bootAdj[bi])}): ${num(view.months.length / 12, 1)} years of monthly returns cannot separate a lasting advantage from luck.`);
+    if (strategies.every((id) => cagrWins(id) < robustShare * nConfigs)) {
+      notSupported.push(`**Outperformance in return.** No strategy has a higher compound return than the SPI in at least ${Math.round(100 * robustShare)} % of the configurations.`);
+    }
+    if (main && strategies.includes('EW')) {
+      const aEw = 12 * mainFit('EW').result.beta[0];
+      if (aEw > 0) notSupported.push(`**The level of the alphas.** Even EW, which has no estimation at all, has an alpha of ${signedPct(aEw, 1)} p.a. in the ${MODELS[main].label} model: part of every alpha reflects the reconstructed universe and the JKP factors rather than the weighting rule. Differences between strategies are more informative than the levels.`);
+    }
+    notSupported.push(biased
+      ? `**Before ${controlled}.** The period includes years with strong survivorship bias: results for those years overstate the returns of the stock-based strategies.`
+      : `**Before ${controlled}.** Longer histories exist, but with strong survivorship bias; they are not evidence.`);
+
+    const verdict = robustBest
+      ? `Among liquid Swiss shares, ${({ GMV: 'a minimum-variance weighting', MDP: 'a most-diversified weighting', ERC: 'an equal-risk-contribution weighting', IVP: 'an inverse-volatility weighting', TP: 'a tangency weighting', EW: 'an equal weighting' } as Record<string, string>)[best] ?? S(best)} would have delivered over ${view.period[0]} – ${view.period[1]} a return ${cagrWins(best) >= robustShare * nConfigs ? 'above' : 'comparable to'} that of the SPI (${pct(b.cagr, 1)} against ${pct(spi.cagr, 1)} p.a.) with ${b.vol < spi.vol ? `about ${Math.round(100 * b.vol / spi.vol)} % of its volatility` : 'a higher volatility'}. The result is robust to the design choices but ${bootAdj[bi] < 0.05 ? 'still needs confirmation out of sample' : 'not statistically significant'}; it is evidence of lower risk, not of a higher return.`
+      : `No weighting rule of the grid robustly improves on the SPI over ${view.period[0]} – ${view.period[1]}: the data do not support an investment conclusion.`;
+
+    return [
+      { kind: 'h2', text: 'Synthesis: what the results support' },
+      { kind: 'p', text: `The conclusions below use the whole precomputed grid — ${m.grid.windows.length} estimation windows, ${m.grid.freqs.length} rebalancing frequencies, ${m.grid.cov.length} covariance estimators and ${Object.keys(m.grid.caps).length} weight caps, i.e. ${nConfigs} configurations — over the common period ${gridPeriod}, with the costs of the default configuration. A result is called robust when it holds in at least ${Math.round(100 * robustShare)} % of them. No configuration is selected from the results.` },
+      { kind: 'h3', text: 'Supported by the data' },
+      ...(supported.length ? [{ kind: 'bullets', items: supported } as Block] : [{ kind: 'p', text: 'No statement passes the robustness threshold.' } as Block]),
+      { kind: 'h3', text: 'Not supported by the data' },
+      { kind: 'bullets', items: notSupported },
+      { kind: 'h3', text: 'Defensible conclusion' },
+      { kind: 'p', text: `**${verdict}**` },
+      { kind: 'note', text: 'Historical and descriptive results on one market and one decade; past risk and return do not determine future ones. Not investment advice.' },
+    ];
+  }
 }
