@@ -1,0 +1,80 @@
+name: Read-only matched-sample alpha audit
+
+on:
+  push:
+    branches: [audit/factor-alpha-matched-20261111]
+    paths:
+      - .github/workflows/alpha-audit.yml
+      - tools/alpha_audit.py
+      - pipeline/tests/test_alpha_audit.py
+      - tests/alpha-audit-published.test.ts
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  alpha-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MARKET_DATA_DIR: ${{ github.workspace }}/market-data
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Obtain private market data read-only
+        uses: actions/checkout@v5
+        with:
+          repository: cedricmasset98/market-data
+          token: ${{ secrets.MARKET_DATA_TOKEN }}
+          path: market-data
+          persist-credentials: false
+          lfs: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Test isolated regression audit
+        run: python -m pytest -q pipeline/tests/test_alpha_audit.py
+      - name: Generate derived portfolio-level results (one configuration only)
+        run: python -m pipeline.build --quick --jobs 2
+      - name: Remove private market data after processing
+        if: always()
+        run: rm -rf market-data
+      - name: Verify analysis on real derived data
+        run: |
+          python tools/alpha_audit.py --data-dir public/data --out alpha-audit.json > /dev/null
+          python - <<'PY'
+          import json
+          r=json.load(open('alpha-audit.json'))
+          print('CONFIG',r['provenance']['configuration'])
+          print('SAMPLE',r['results']['samples'])
+          for cov,v in r['results']['methods'].items():
+              print('METHOD',cov)
+              for k in ['A_original','B_matched','C_plus_BAB']:
+                  print(k, v[k])
+              for k in ['sample_effect_pa','BAB_effect_pa','total_effect_pa',
+                        'BAB_loading','BAB_loading_p','BAB_conditional_alpha_pa',
+                        'identity_error_pa','stat_change_numerator','stat_change_se']:
+                  print(k, v[k])
+              print('MONKEYS_EW',r['results']['monkeys_vs_ew'][cov])
+              print('HOLM',r['results']['multiple_models'][cov]['FF5MOMBAB']['holm_p'])
+          PY
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Cross-check live browser engine on real data against statsmodels
+        run: |
+          npm ci --no-audit --no-fund
+          node --experimental-strip-types --no-warnings --test tests/alpha-audit-published.test.ts
+      - name: Save aggregate audit results, no stock-level data
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha-audit-aggregate-results
+          path: alpha-audit.json
+          if-no-files-found: error
+          retention-days: 7
