@@ -1,4 +1,4 @@
-/** Swiss Equity Portfolio Lab — application shell: settings bar, tabs, URL state. */
+/** Swiss Equity Portfolios — application shell: settings bar, tabs, URL state. */
 
 import './styles.css';
 import './paper.css';

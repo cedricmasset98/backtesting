@@ -2,7 +2,7 @@
   "name": "swiss-equity-portfolio-lab",
   "version": "1.0.0",
   "private": true,
-  "description": "Swiss Equity Portfolio Lab — walk-forward backtests of eight portfolio strategies on Swiss equities",
+  "description": "Swiss Equity Portfolios — walk-forward backtests of eight portfolio strategies on Swiss equities",
   "type": "module",
   "engines": {
     "node": ">=22.6"

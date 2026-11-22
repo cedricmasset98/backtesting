@@ -38,8 +38,8 @@ const blocks = await reportBlocks({ s, m, market, strat, monkeys, view }, {
   monkeys: async (mode) => loadMk(mode),
 });
 const tex = toLatex(blocks, {
-  title: 'Swiss Equity Portfolio Lab — Results report',
-  footer: `Swiss Equity Portfolio Lab · cedricmasset.ch/backtesting · ${view.period[0]} – ${view.period[1]} · built ${m.generated_at.slice(0, 10)}`,
+  title: 'Swiss Equity Portfolios — Results report',
+  footer: `Swiss Equity Portfolios · cedricmasset.ch/backtesting · ${view.period[0]} – ${view.period[1]} · built ${m.generated_at.slice(0, 10)}`,
 });
 
 mkdirSync(WORK, { recursive: true });

@@ -130,7 +130,7 @@ export async function reportBlocks(c: ReportCtx, load: ReportLoaders): Promise<B
   });
 
   const blocks: Block[] = [
-    { kind: 'title', text: 'Swiss Equity Portfolio Lab', subtitle: 'Results report — default configuration' },
+    { kind: 'title', text: 'Swiss Equity Portfolios', subtitle: 'Results report — default configuration' },
     { kind: 'meta', text: `${configLabel(c)} · ${periodLabel(c)} · ${basisLabel(c)} · monkeys: $K = ${s.k}$, seed ${s.seed}. Data up to ${m.data_last_date}; results built ${m.generated_at.slice(0, 10)}.` },
     { kind: 'note', text: 'Generated automatically from the published results of the default configuration of the site; every figure updates with the data. Historical and descriptive results, not investment advice.' },
   ];

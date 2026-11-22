@@ -1,4 +1,4 @@
-# Swiss Equity Portfolio Lab
+# Swiss Equity Portfolios
 
 Interactive comparison of eight portfolio strategies on Swiss equities — Market-Cap Weighted
 (SPI total return), Equally-Weighted, Global Minimum Variance, Equal Risk Contribution,
