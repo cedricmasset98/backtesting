@@ -52,7 +52,7 @@ export function baseLayout(t: Theme, extra: Record<string, unknown> = {}): Recor
   const base: Record<string, unknown> = {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { family: 'Inter, system-ui, -apple-system, Segoe UI, sans-serif', color: t.fg, size: 12 },
+    font: { family: "'Source Serif 4', Georgia, 'Times New Roman', serif", color: t.fg, size: 12 },
     margin: { l: 60, r: 20, t: 20, b: 45 },
     hoverlabel: { bgcolor: t.panel, bordercolor: t.grid, font: { color: t.fg } },
     legend: { orientation: 'h', y: -0.15, font: { color: t.fg } },

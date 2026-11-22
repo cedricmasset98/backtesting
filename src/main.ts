@@ -1,6 +1,7 @@
 /** Swiss Equity Portfolio Lab — application shell: settings bar, tabs, URL state. */
 
 import './styles.css';
+import './paper.css';
 import { configKey, loadFrontier, loadHoldings, loadManifest, loadMarket, loadMonkeys, loadStrategies } from './data/loader.ts';
 import type { Manifest, Market, SeriesId } from './data/types.ts';
 import { buildView } from './model.ts';

@@ -1,0 +1,91 @@
+/* "Working paper" layout, loaded after styles.css.
+   Serif type, white page, no cards or shadows, hairline rules,
+   booktabs tables, numbered figures and tables. */
+
+:root {
+  --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius: 0;
+  --shadow: none;
+}
+:root:not([data-theme='dark']) {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --fg: #1b1b1b;
+  --muted: #5a5a5a;
+  --border: #dcdcdc;
+  --grid: #ececec;
+  --accent: #1c3d6e;
+}
+
+html, body { font: 15.5px/1.6 var(--serif); background: var(--bg); }
+
+/* Header, data bar, tabs, controls: one centred column */
+.top, .databar, .tabs, .controls, .view, .foot, .cite {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 32px;
+  padding-right: 32px;
+}
+.top { padding-top: 28px; padding-bottom: 10px; border: 0; background: transparent; }
+.brand h1 { font-family: var(--serif); font-weight: 600; font-size: 30px; letter-spacing: 0; }
+.subtitle { font-style: italic; font-size: 16px; }
+.icon-btn { border: 0; background: transparent; }
+.databar { padding-top: 6px; padding-bottom: 14px; background: transparent; border: 0; border-bottom: 1px solid var(--fg); font-family: var(--sans); }
+
+.tabs { padding-top: 6px; background: var(--bg); gap: 0; }
+.tabs button { font-family: var(--sans); font-weight: 500; font-size: 13px; padding: 8px 14px 9px; border-radius: 0; background: transparent; border: 0; border-bottom: 2px solid transparent; }
+.tabs button[aria-selected='true'] { color: var(--fg); border-bottom-color: var(--fg); }
+
+.controls { padding-top: 14px; padding-bottom: 14px; background: transparent; font-family: var(--sans); }
+.controls legend { font-family: var(--serif); text-transform: none; letter-spacing: 0; font-size: 13px; font-style: italic; font-weight: 400; color: var(--fg); }
+.controls input, .controls select, .tools select, button { border-radius: 2px; background: var(--panel); font-family: var(--sans); }
+.seg button[aria-pressed='true'] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chip { border: 0; border-radius: 0; padding: 2px 6px 2px 0; }
+.dot { border-radius: 0; width: 14px; height: 3px; vertical-align: 3px; }
+.banner { border-radius: 0; background: transparent; border: 0; border-left: 3px solid var(--warn); }
+
+/* Sections instead of cards */
+.view { padding-top: 10px; padding-bottom: 40px; gap: 8px; counter-reset: fig tab; }
+.card { background: transparent; border: 0; border-top: 1px solid var(--border); box-shadow: none; border-radius: 0; padding: 22px 0 18px; }
+.hero.card { border-top: 0; }
+.grid2 { gap: 48px; }
+h2 { font-family: var(--serif); font-weight: 600; font-size: 23px; letter-spacing: 0; }
+h3 { font-family: var(--serif); font-weight: 600; font-size: 17px; }
+
+/* Numbered figures and tables */
+.card:has(.chart) > h3::before,
+.card:has(.chart) > .card-head h3::before { counter-increment: fig; content: 'Figure ' counter(fig) '. '; font-weight: 400; font-style: italic; }
+.card:has(table.data):not(:has(.chart)) > h3::before,
+.card:has(table.data):not(:has(.chart)) > .card-head h3::before { counter-increment: tab; content: 'Table ' counter(tab) '. '; font-weight: 400; font-style: italic; }
+
+/* Key figures: one ruled row instead of boxed tiles */
+.tiles { display: flex; gap: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 14px 0; }
+.tile { flex: 1; background: transparent; border: 0; border-right: 1px solid var(--border); border-radius: 0; box-shadow: none; padding: 8px 18px; }
+.tile:last-child { border-right: 0; }
+.tile-v { font-size: 20px; font-weight: 600; }
+.tile-l { font-style: italic; font-size: 13px; }
+
+/* Booktabs tables */
+table.data { font-family: var(--serif); font-size: 14px; }
+table.data th, table.data td { border-bottom: 0; padding: 4px 12px; }
+table.data thead th { background: var(--bg); color: var(--fg); font-weight: 600; font-size: 13px; }
+table.data thead tr:first-child th { border-top: 1.5px solid var(--fg); }
+table.data thead tr:last-child th { border-bottom: 0.75px solid var(--fg); }
+table.data tbody tr:last-child td, table.data tbody tr:last-child th { border-bottom: 1.5px solid var(--fg); }
+
+/* Run-in italic headings instead of bold lead-ins */
+.note { font-size: 13.5px; line-height: 1.55; }
+.card li > strong:first-child, .card p > strong:first-child { font-weight: 400; font-style: italic; }
+.card ul { padding-left: 1.1em; }
+.warnbox { border-radius: 0; background: transparent; border: 0; border-left: 3px solid var(--warn); padding-left: 14px; }
+
+/* Footer and citation */
+.foot { font-family: var(--serif); font-size: 13px; border-top: 1px solid var(--fg); }
+.cite { margin-bottom: 40px; font-size: 13.5px; color: var(--muted); }
+.cite b { font-weight: 600; color: var(--fg); }
+.banner { margin: 12px max(32px, calc((100% - 1100px) / 2 + 32px)) 0; }
+.tiles { flex-wrap: wrap; }
+.tile { min-width: 150px; }
+.foot { text-align: left; padding-bottom: 6px; }
