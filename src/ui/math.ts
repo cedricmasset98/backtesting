@@ -28,7 +28,7 @@ export function watchMath(el: HTMLElement): void {
   const observer = new MutationObserver(() => {
     if (pending) return;
     pending = true;
-    requestAnimationFrame(run);
+    setTimeout(run, 0); // not requestAnimationFrame: it does not fire in background tabs
   });
   function run(): void {
     pending = false;
