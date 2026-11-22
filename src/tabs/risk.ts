@@ -120,8 +120,8 @@ export function renderRisk(c: Ctx): void {
               .join(''),
         )
         .join('')}</tbody></table></div>
-    <p class="note">Volatility (dispersion of monthly returns, × √12) measures risk; the standard error of the mean (s/√n) measures how precisely the average return is estimated; the mean return is the average itself.
-    Sharpe = mean(R − R<sub>f</sub>)/sd(R − R<sub>f</sub>) × √12; Sortino = 12·mean(R − R<sub>f</sub>)/downside deviation; information ratio and tracking error use R − R<sub>SPI</sub>; beta = cov(R − R<sub>f</sub>, R<sub>SPI</sub> − R<sub>f</sub>)/var(R<sub>SPI</sub> − R<sub>f</sub>).
+    <p class="note">Volatility (dispersion of monthly returns, \\(\\times\\sqrt{12}\\)) measures risk; the standard error of the mean (\\(s/\\sqrt{n}\\)) measures how precisely the average return is estimated; the mean return is the average itself.
+    Sharpe \\(= \\overline{R - R_f}\\,/\\,s(R - R_f) \\times \\sqrt{12}\\); Sortino \\(= 12\\,\\overline{R - R_f}\\,/\\,\\mathrm{DD}\\) (downside deviation); information ratio and tracking error use \\(R - R_{\\text{SPI}}\\); \\(\\beta = \\operatorname{cov}(R - R_f,\\, R_{\\text{SPI}} - R_f) / \\operatorname{var}(R_{\\text{SPI}} - R_f)\\).
     VaR/CVaR are monthly historical losses (positive numbers). Monkeys: statistics of the average portfolio (see the Monkeys tab for the distribution of the 100 individual monkeys).</p>
   </section>
   <div class="grid2">

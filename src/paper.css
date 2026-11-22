@@ -100,3 +100,8 @@ table.data tbody tr:last-child td, table.data tbody tr:last-child th { border-bo
 .prose table.data:has(tbody th[scope='row']) td,
 .prose table.data:has(tbody th[scope='row']) thead th:not(:first-child) { text-align: right; }
 .prose table.data:has(tbody th[scope='row']) tbody th { text-align: left; font-weight: 400; }
+
+/* Mathematical notation (KaTeX) */
+.katex { font-size: 1.05em; }
+.katex-display { margin: 0.7em 0; max-width: 980px; overflow-x: auto; overflow-y: hidden; }
+.note .katex-display { margin: 0.5em 0; }

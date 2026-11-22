@@ -28,7 +28,7 @@ export function renderFrontier(c: Ctx, fr: FrontierFile): void {
   </section>
   <div class="grid2">
     <section class="card"><h3>Ex ante — estimated at ${snap.month}</h3><div id="ch-exante" class="chart tall"></div>${exportsHtml('ch-exante', `frontier_ex_ante_${snap.month}`)}
-      <p class="note">Annualised: μ × 12, σ × √12. Grey dots: 100 random 30-stock equally weighted portfolios drawn at the same date (seed 1), evaluated with the same estimates. Expected returns are estimates, which is why the realised positions differ.</p></section>
+      <p class="note">Annualised: \\(\\mu \\times 12\\), \\(\\sigma \\times \\sqrt{12}\\). Grey dots: 100 random 30-stock equally weighted portfolios drawn at the same date (seed 1), evaluated with the same estimates. Expected returns are estimates, which is why the realised positions differ.</p></section>
     <section class="card"><h3>Realised out of sample — ${escapeHtml(periodLabel(c))}</h3><div id="ch-real" class="chart tall"></div>${exportsHtml('ch-real', 'realised_risk_return')}
       <p class="note">Annualised volatility and arithmetic mean return (12 × mean, ${s.basis}) of the monthly returns actually earned. Grey dots: the 100 monkeys (K = ${s.k}, seed ${s.seed}).</p></section>
   </div>`;

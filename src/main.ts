@@ -9,6 +9,7 @@ import { ALL_SERIES, defaults, fromUrl, TABS, toUrl, type State, type TabId } fr
 import { LABEL, readTheme, SHORT } from './ui/charts.ts';
 import type { Ctx } from './ui/context.ts';
 import { escapeHtml } from './ui/format.ts';
+import { watchMath } from './ui/math.ts';
 import { renderOverview } from './tabs/overview.ts';
 import { renderPerformance } from './tabs/performance.ts';
 import { renderRisk } from './tabs/risk.ts';
@@ -232,6 +233,7 @@ function setupTheme(): void {
 
 async function init(): Promise<void> {
   setupTheme();
+  watchMath($('view'));
   try {
     [manifest, market] = await Promise.all([loadManifest(), loadMarket()]);
   } catch (e) {

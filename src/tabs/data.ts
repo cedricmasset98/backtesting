@@ -61,23 +61,26 @@ export function renderData(c: Ctx): void {
     <h3>4. Strategies</h3>
     <ul class="plain">
       <li><strong>CW</strong> — SPI total return index (official series, no costs). Not a replicated portfolio.</li>
-      <li><strong>EW</strong> — w<sub>i</sub> = 1/N over the eligible universe.</li>
-      <li><strong>GMV</strong> — min w'Σw.</li>
-      <li><strong>ERC</strong> — w<sub>i</sub>(Σw)<sub>i</sub> equal for all i (equal contributions to variance, equivalently to volatility); Newton solution of min ½y'Σy − (1/N)Σ ln y<sub>i</sub>. With a binding cap: risk budgeting under bounds — capped stocks at the cap with a contribution not above the common one, all other stocks with exactly equal contributions (active set + Newton). The Composition tab reports how often the cap binds.</li>
-      <li><strong>TP</strong> — max (w'μ − r<sub>f</sub>)/√(w'Σw), μ = Bayes-Stein (Jorion, 1986): shrinkage of the sample means towards the GMV mean with intensity φ = λ/(T + λ). If no portfolio has a positive expected excess return, TP holds GMV (flagged). Sensitivity: the same problem with sample means (TP sample μ).</li>
-      <li><strong>MDP</strong> — max w'σ/√(w'Σw) (Choueifaty &amp; Coignard, 2008).</li>
-      <li><strong>IVP</strong> — w<sub>i</sub> ∝ 1/σ<sub>i</sub>.</li>
-      <li><strong>Monkeys</strong> — 100 random equally weighted portfolios of K stocks. <em>Kept</em> (default): the stocks are kept as long as they remain eligible and only those that leave the universe are replaced by new random draws, equal weights being restored at each rebalancing date; <em>Redrawn</em>: K new stocks at each rebalancing date (much higher turnover). Monkeys tab.</li>
+      <li><strong>EW</strong> — \\(w_i = 1/N\\) over the eligible universe.</li>
+      <li><strong>GMV</strong> — \\(\\min_w\\, w^\\top\\Sigma w\\).</li>
+      <li><strong>ERC</strong> — \\(w_i(\\Sigma w)_i\\) equal for all \\(i\\) (equal contributions to variance, equivalently to volatility); Newton solution of \\(\\min_y \\tfrac12\\, y^\\top\\Sigma y - \\tfrac1N \\sum_i \\ln y_i\\). With a binding cap: risk budgeting under bounds — capped stocks at the cap with a contribution not above the common one, all other stocks with exactly equal contributions (active set + Newton). The Composition tab reports how often the cap binds.</li>
+      <li><strong>TP</strong> — \\(\\max_w\\, (w^\\top\\mu - r_f)/\\sqrt{w^\\top\\Sigma w}\\), with \\(\\mu\\) estimated by Bayes-Stein (Jorion, 1986): shrinkage of the sample means towards the GMV mean with intensity \\(\\phi = \\lambda/(T + \\lambda)\\). If no portfolio has a positive expected excess return, TP holds GMV (flagged). Sensitivity: the same problem with sample means (TP sample \\(\\mu\\)).</li>
+      <li><strong>MDP</strong> — \\(\\max_w\\, w^\\top\\sigma/\\sqrt{w^\\top\\Sigma w}\\) (Choueifaty &amp; Coignard, 2008).</li>
+      <li><strong>IVP</strong> — \\(w_i \\propto 1/\\sigma_i\\).</li>
+      <li><strong>Monkeys</strong> — 100 random equally weighted portfolios of \\(K\\) stocks. <em>Kept</em> (default): the stocks are kept as long as they remain eligible and only those that leave the universe are replaced by new random draws, equal weights being restored at each rebalancing date; <em>Redrawn</em>: \\(K\\) new stocks at each rebalancing date (much higher turnover). Monkeys tab.</li>
     </ul>
     <p>All portfolios are long-only, fully invested, without leverage, with a weight cap of ${Object.keys(m.grid.caps).join(', ')} % (GMV, TP, MDP, ERC: constraint in the optimisation; EW, IVP: excess above the cap redistributed pro rata). No uncapped configuration is published: an unconstrained optimiser can hold one stock, whose return would then be disclosed.
     Optimisations use an exact projection on the capped simplex, spectral projected gradient and a primal active-set QP solver (KKT conditions checked); the ratio problems (TP, MDP) are pseudo-concave so first-order points are global maxima.
-    Covariance: <em>Ledoit-Wolf</em> shrinkage to constant correlation (2004), or <em>sample</em> covariance + ridge 10<sup>−4</sup>·tr(S)/N — needed because N &gt; T in every configuration (the sample matrix is singular). Bayes-Stein always uses the Ledoit-Wolf matrix.</p>
+    Covariance: <em>Ledoit-Wolf</em> shrinkage to constant correlation (2004), or <em>sample</em> covariance + ridge \\(10^{-4}\\,\\mathrm{tr}(S)/N\\) — needed because \\(N > T\\) in every configuration (the sample matrix is singular). Bayes-Stein always uses the Ledoit-Wolf matrix.</p>
     ${cfg ? `<p class="muted small">Current configuration: first decision ${cfg.first_decision}, ${cfg.n_decisions} monthly decisions, TP fallbacks ${cfg.tp_fallbacks}, solver: ${Object.entries(cfg.solver).map(([k, v]) => `${k} ${v}`).join(', ')}.</p>` : ''}
 
     <h3>5. Timing, rebalancing and costs</h3>
-    <p>Decision at the close of month t with data up to t; weights earn returns from t+1. Weights are computed every month; quarterly and annual schedules trade at calendar quarter-ends and year-ends (and at the first decision) and let weights drift otherwise: w<sub>i</sub> ← w<sub>i</sub>(1 + r<sub>i</sub>)/(1 + r<sub>p</sub>).
-    Turnover TO<sub>t</sub> = Σ<sub>i</sub>|w<sub>i,target</sub> − w<sub>i,before</sub>| (buys + sells). Net return: 1 + r<sup>net</sup> = (1 − c·TO<sub>t</sub> − S<sub>t</sub>)(1 + r<sup>gross</sup>), with c a fixed cost in basis points of traded value (commission and stamp duty; default ${m.default.bps ?? 10} bp) and S<sub>t</sub> = Σ<sub>i</sub>|Δw<sub>i</sub>|·s<sub>i,t</sub>/2 the cost of crossing half the bid-ask spread of each traded stock (can be switched off).
-    The spread s<sub>i,t</sub> is estimated from daily close, high and low prices with the Abdi &amp; Ranaldo (2017) estimator over the last ${u.rules.liq_lookback_days} trading days ending at t (no later data). Because one stock's estimate is noisy, the stocks are split at each month-end into ${m.costs?.spread_groups ?? 10} groups of median daily traded value and each stock is assigned the median estimate of its group, so that the spread falls with liquidity.
+    <p>Decision at the close of month \\(t\\) with data up to \\(t\\); weights earn returns from \\(t+1\\). Weights are computed every month; quarterly and annual schedules trade at calendar quarter-ends and year-ends (and at the first decision) and let weights drift otherwise:</p>
+    \\[ w_i \\leftarrow \\frac{w_i\\,(1 + r_i)}{1 + r_p}. \\]
+    <p>Turnover (buys + sells), net return and spread cost are</p>
+    \\[ \\mathrm{TO}_t = \\sum_i \\bigl|w_{i,\\text{target}} - w_{i,\\text{before}}\\bigr|, \\qquad 1 + r^{\\text{net}}_t = (1 - c\\,\\mathrm{TO}_t - S_t)(1 + r^{\\text{gross}}_t), \\qquad S_t = \\sum_i |\\Delta w_i|\\,\\frac{s_{i,t}}{2}, \\]
+    <p>with \\(c\\) a fixed cost in basis points of traded value (commission and stamp duty; default ${m.default.bps ?? 10} bp) and \\(S_t\\) the cost of crossing half the bid-ask spread of each traded stock (can be switched off).
+    The spread \\(s_{i,t}\\) is estimated from daily close, high and low prices with the Abdi &amp; Ranaldo (2017) estimator over the last ${u.rules.liq_lookback_days} trading days ending at \\(t\\) (no later data). Because one stock's estimate is noisy, the stocks are split at each month-end into ${m.costs?.spread_groups ?? 10} groups of median daily traded value and each stock is assigned the median estimate of its group, so that the spread falls with liquidity.
     Because weights do not depend on costs, the browser recomputes net returns exactly. The initial purchase is not charged, so that every sub-period is comparable. Market impact is not modelled.</p>
     ${m.costs ? `<table class="data compact"><thead><tr><th>Liquidity group</th>${m.costs.groups.map((g) => `<th>${g.group}</th>`).join('')}</tr></thead><tbody>
       <tr><th scope="row">Median daily traded value (CHF)</th>${m.costs.groups.map((g) => `<td>${g.median_daily_value_chf === null ? '—' : Math.round(g.median_daily_value_chf).toLocaleString('en')}</td>`).join('')}</tr>
@@ -88,10 +91,15 @@ export function renderData(c: Ctx): void {
     <p>Automatic tests (pipeline/tests) check that altering future returns or listings leaves every earlier decision and return unchanged, for every strategy and schedule; that monkeys draws are reproducible and independent of later data; and that the published files contain no raw price field and no return series equal to a single stock's.</p>
 
     <h3>6. Statistics</h3>
-    <p>Monthly simple returns; CAGR = (V<sub>T</sub>/V<sub>0</sub>)<sup>12/n</sup> − 1; arithmetic annualised return 12 × mean; volatility s × √12 (n − 1 divisor); standard error of the mean s/√n (monthly).
-    Downside deviation √(mean(min(R − R<sub>f</sub>, 0)²)) × √12. Historical VaR/CVaR at 95/99 % on monthly returns (linear-interpolated quantiles). Skewness and excess kurtosis from biased moments.
-    Sharpe = mean(R − R<sub>f</sub>)/sd × √12; Sortino = 12 mean(R − R<sub>f</sub>)/DD; Calmar = CAGR/|MDD|; IR = 12 mean(R − R<sub>SPI</sub>)/TE, TE = sd(R − R<sub>SPI</sub>)√12; beta on SPI excess returns.</p>
-    <p>Regressions: OLS with classical, HC3 or Newey-West (Bartlett, L = ⌊4(n/100)<sup>2/9</sup>⌋, no small-sample correction) covariances; t (classical) or normal (robust) inference; Jarque-Bera, Breusch-Pagan (Koenker) and Ljung-Box (min(12, n/5) lags) tests.
+    <p>Returns are monthly simple returns \\(R_t\\), \\(t = 1, \\dots, n\\). Over the period,</p>
+    \\[ \\mathrm{CAGR} = \\Bigl(\\frac{V_T}{V_0}\\Bigr)^{12/n} - 1, \\qquad \\bar R^{\\,\\text{ann}} = 12\\,\\bar R, \\qquad \\sigma^{\\text{ann}} = s\\sqrt{12}, \\]
+    <p>where \\(s\\) is the sample standard deviation (\\(n - 1\\) divisor); the standard error of the mean is \\(s/\\sqrt{n}\\) (monthly). The downside deviation is</p>
+    \\[ \\mathrm{DD} = \\sqrt{\\tfrac1n \\textstyle\\sum_t \\min(R_t - R_{f,t},\\, 0)^2}\\;\\sqrt{12}. \\]
+    <p>Historical VaR and CVaR at 95 % and 99 % use monthly returns (linear-interpolated quantiles); skewness and excess kurtosis come from biased moments. The risk-adjusted ratios are</p>
+    \\[ \\text{Sharpe} = \\frac{\\overline{R - R_f}}{s(R - R_f)}\\sqrt{12}, \\qquad \\text{Sortino} = \\frac{12\\,\\overline{R - R_f}}{\\mathrm{DD}}, \\qquad \\text{Calmar} = \\frac{\\mathrm{CAGR}}{|\\mathrm{MDD}|}, \\]
+    \\[ \\mathrm{IR} = \\frac{12\\,\\overline{R - R_{\\text{SPI}}}}{\\mathrm{TE}}, \\qquad \\mathrm{TE} = s(R - R_{\\text{SPI}})\\sqrt{12}, \\]
+    <p>and beta is estimated on SPI excess returns.</p>
+    <p>Regressions: OLS with classical, HC3 or Newey-West covariances (Bartlett kernel, \\(L = \\lfloor 4(n/100)^{2/9} \\rfloor\\), no small-sample correction); \\(t\\) (classical) or normal (robust) inference; Jarque-Bera, Breusch-Pagan (Koenker) and Ljung-Box (\\(\\min(12,\\, n/5)\\) lags) tests.
     The engine is the one of Empirical-Asset-Pricing and is checked against statsmodels in CI on synthetic data and on the published strategy returns. Bootstrap: stationary bootstrap of paired months (mean block 6), Holm correction.</p>
 
     <h3>7. Limitations</h3>

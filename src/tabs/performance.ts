@@ -35,8 +35,8 @@ export function renderPerformance(c: Ctx): void {
     </header>
     <div id="ch-perf" class="chart xtall" role="img" aria-label="Cumulative wealth, drawdowns and wealth relative to the SPI"></div>
     ${exportsHtml('ch-perf', 'cumulative_performance')}
-    <p class="note">Top: value of 100 CHF invested at ${dates[0]} (V<sub>t</sub> = 100 × ∏(1 + r<sub>p,s</sub>)); every portfolio starts at 100 on the same date.
-    Middle: drawdown V<sub>t</sub>/max<sub>s≤t</sub> V<sub>s</sub> − 1. Bottom: relative wealth 100 × V<sub>t</sub>/V<sub>t</sub><sup>SPI</sup>
+    <p class="note">Top: value of 100 CHF invested at ${dates[0]} (\\(V_t = 100 \\prod_{s \\le t} (1 + r_{p,s})\\)); every portfolio starts at 100 on the same date.
+    Middle: drawdown \\(V_t / \\max_{s \\le t} V_s - 1\\). Bottom: relative wealth \\(100\\, V_t / V_t^{\\text{SPI}}\\)
     (above 100 = the strategy has outperformed the SPI total return since the start of the period). Drag to zoom: the three panels share the time axis.</p>
   </section>
   <section class="card">

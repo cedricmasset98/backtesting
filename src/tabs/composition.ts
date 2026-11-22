@@ -40,9 +40,9 @@ export function renderComposition(c: Ctx, hold: HoldingsFile): void {
     <section class="card"><h3>Largest weight</h3><div id="ch-maxw" class="chart short"></div>${exportsHtml('ch-maxw', 'max_weight')}<p class="note">Weights held at the start of each month. The cap applies to the target weights at each rebalancing date; between two rebalancing dates a stock that outperforms can drift above it.</p></section>
     <section class="card"><h3>Weight of the ten largest positions</h3><div id="ch-top10" class="chart short"></div>${exportsHtml('ch-top10', 'top10_weight')}</section>
     <section class="card"><h3>Turnover at each trade date</h3><div id="ch-to" class="chart short"></div>${exportsHtml('ch-to', 'turnover')}
-      <p class="note">Σ|w<sub>target</sub> − w<sub>before</sub>| (buys + sells, fraction of wealth). Small values between rebalancing dates come from reinvesting the proceeds of delisted stocks.</p></section>
+      <p class="note">\\(\\sum_i |w_{i,\\text{target}} - w_{i,\\text{before}}|\\) (buys + sells, fraction of wealth). Small values between rebalancing dates come from reinvesting the proceeds of delisted stocks.</p></section>
     <section class="card"><h3>Ex ante risk concentration at rebalancing dates</h3><div id="ch-rc" class="chart short"></div>${exportsHtml('ch-rc', 'risk_concentration')}
-      <p class="note">Effective number of risk contributions 1/Σ RC<sub>i</sub>², RC<sub>i</sub> = w<sub>i</sub>(Σw)<sub>i</sub>/w'Σw (with the covariance estimated at the date). Without a binding cap ERC equalises the contributions, so this number equals N.</p>
+      <p class="note">Effective number of risk contributions \\(1/\\sum_i \\mathrm{RC}_i^2\\), \\(\\mathrm{RC}_i = w_i(\\Sigma w)_i / w^\\top\\Sigma w\\) (with the covariance estimated at the date). Without a binding cap ERC equalises the contributions, so this number equals \\(N\\).</p>
       ${ercNote}</section>
   </div>
   <section class="card">

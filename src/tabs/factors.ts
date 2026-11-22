@@ -54,14 +54,15 @@ export function renderFactors(c: Ctx): void {
   c.root.innerHTML = `
   <section class="card">
     <header class="card-head"><div><h2>Factor Analysis</h2>
-      <p class="muted small">${escapeHtml(configLabel(c))} · ${escapeHtml(periodLabel(c))} · dependent variable: monthly ${s.basis} excess return R<sub>p</sub> − R<sub>f</sub> (${escapeHtml(basisLabel(c))})</p></div>
+      <p class="muted small">${escapeHtml(configLabel(c))} · ${escapeHtml(periodLabel(c))} · dependent variable: monthly ${s.basis} excess return \\(R_p - R_f\\) (${escapeHtml(basisLabel(c))})</p></div>
       <div class="tools">
         <label>Portfolio <select id="f-pf">${available.map((id) => `<option value="${id}" ${id === pf ? 'selected' : ''}>${SHORT[id]}</option>`).join('')}</select></label>
         <label>Inference <select id="f-inf">${(['classical', 'HC3', 'HAC'] as CovType[]).map((k) => `<option value="${k}" ${k === s.inference ? 'selected' : ''}>${k === 'classical' ? 'OLS' : k === 'HAC' ? 'Newey-West' : 'HC3'}</option>`).join('')}</select></label>
         <label>Model (charts) <select id="f-model">${MODEL_IDS.map((m) => `<option value="${m}" ${m === s.model ? 'selected' : ''}>${MODELS[m].label}</option>`).join('')}</select></label>
       </div></header>
-    <p class="note">R<sub>p</sub> − R<sub>f</sub> = α + β<sub>M</sub>MKT + β<sub>S</sub>SMB + β<sub>H</sub>HML + β<sub>R</sub>RMW + β<sub>C</sub>CMA + β<sub>W</sub>MOM + β<sub>B</sub>BAB + ε. MKT = SPI total return − Swiss r<sub>f</sub>.
-    SMB, HML, RMW, CMA, MOM and BAB (low beta − high beta) are the Swiss <strong>Jensen-Kelly-Pedersen</strong> long-short factors built on market_equity, be_me, ope_be, at_gr1, ret_12_1 and betabab_1260d (capped value weights, converted from USD to CHF as F(1 + s)).
+    <p class="note">\\[ R_p - R_f = \\alpha + \\beta_M\\,\\mathrm{MKT} + \\beta_S\\,\\mathrm{SMB} + \\beta_H\\,\\mathrm{HML} + \\beta_R\\,\\mathrm{RMW} + \\beta_C\\,\\mathrm{CMA} + \\beta_W\\,\\mathrm{MOM} + \\beta_B\\,\\mathrm{BAB} + \\varepsilon \\]
+    MKT = SPI total return − Swiss \\(r_f\\).
+    SMB, HML, RMW, CMA, MOM and BAB (low beta − high beta) are the Swiss <strong>Jensen-Kelly-Pedersen</strong> long-short factors built on market_equity, be_me, ope_be, at_gr1, ret_12_1 and betabab_1260d (capped value weights, converted from USD to CHF as \\(F(1 + s)\\)).
     They are close to, but not replications of, the Fama-French factors. JKP data end in ${jkpLast}: months after that are not in the multifactor samples.</p>
     ${unavailable.length ? `<p class="warn">Not estimated: ${unavailable.map((m) => `${MODELS[m].label} — ${escapeHtml((F[m] as Extract<FitOutcome, { ok: false }>).reason)}`).join('; ')}</p>` : ''}
   </section>
@@ -116,7 +117,7 @@ export function renderFactors(c: Ctx): void {
   <div class="grid2">
     <section class="card"><h3>Alpha across models — ${LABEL[pf]}</h3><div id="ch-alpha" class="chart"></div>${exportsHtml('ch-alpha', 'alpha_by_model')}</section>
     <section class="card"><h3>Mean excess return attribution — ${MODELS[s.model].label}</h3><div id="ch-attr" class="chart"></div>${exportsHtml('ch-attr', 'attribution')}
-      <p class="note">In-sample OLS identity: mean(R<sub>p</sub> − R<sub>f</sub>) = α̂ + Σ β̂<sub>k</sub> · mean(F<sub>k</sub>), annualised ×12. It assumes constant exposures over the sample.</p></section>
+      <p class="note">In-sample OLS identity: \\(\\overline{R_p - R_f} = \\hat\\alpha + \\sum_k \\hat\\beta_k\\, \\bar F_k\\), annualised \\(\\times 12\\). It assumes constant exposures over the sample.</p></section>
   </div>
 
   <section class="card">
