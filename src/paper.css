@@ -105,3 +105,6 @@ table.data tbody tr:last-child td, table.data tbody tr:last-child th { border-bo
 .katex { font-size: 1.05em; }
 .katex-display { margin: 0.7em 0; max-width: 980px; overflow-x: auto; overflow-y: hidden; }
 .note .katex-display { margin: 0.5em 0; }
+
+/* Light / dark toggle at the right end of the header */
+.top .icon-btn { margin-left: auto; }

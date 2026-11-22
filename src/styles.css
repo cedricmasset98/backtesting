@@ -60,7 +60,6 @@ h4 { font-size: 13.5px; margin: 0 0 4px; }
 .top { display: flex; align-items: center; gap: 20px; padding: 16px 28px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
 .subtitle { margin: 2px 0 0; color: var(--muted); }
-.sister { margin-left: auto; font-size: 13px; text-decoration: none; }
 .icon-btn { font: inherit; font-size: 18px; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: pointer; }
 .databar { padding: 6px 28px; font-size: 12px; color: var(--muted); background: var(--panel); border-bottom: 1px solid var(--border); }
 
@@ -140,7 +139,6 @@ ul.plain li { margin: 4px 0; }
   .top, .controls, .tabs, .databar { padding-left: 14px; padding-right: 14px; }
   .view { padding: 12px 10px 20px; }
   .chart.xtall { height: 620px; }
-  .sister { display: none; }
   .tabs { overflow-x: auto; flex-wrap: nowrap; }
   .tabs button { white-space: nowrap; }
 }
