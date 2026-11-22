@@ -91,3 +91,12 @@ table.data tbody tr:last-child td, table.data tbody tr:last-child th { border-bo
 .tiles { flex-wrap: wrap; }
 .tile { min-width: 150px; }
 .foot { text-align: left; padding-bottom: 6px; }
+
+/* Methodology text: tables and figures share the text width (.prose p, li: 980px);
+   tables take their natural width, headers aligned like their columns */
+.prose table.data { width: auto; max-width: 980px; }
+.prose .chart { max-width: 980px; }
+.prose table.data th { text-align: left; }
+.prose table.data:has(tbody th[scope='row']) td,
+.prose table.data:has(tbody th[scope='row']) thead th:not(:first-child) { text-align: right; }
+.prose table.data:has(tbody th[scope='row']) tbody th { text-align: left; font-weight: 400; }
