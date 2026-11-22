@@ -54,12 +54,12 @@ export function renderFactors(c: Ctx): void {
   c.root.innerHTML = `
   <section class="card">
     <header class="card-head"><div><h2>Factor Analysis</h2>
-      <p class="muted small">${escapeHtml(configLabel(c))} · ${escapeHtml(periodLabel(c))} · dependent variable: monthly ${s.basis} excess return \\(R_p - R_f\\) (${escapeHtml(basisLabel(c))})</p></div>
-      <div class="tools">
+      <p class="muted small">${escapeHtml(configLabel(c))} · ${escapeHtml(periodLabel(c))} · dependent variable: monthly ${s.basis} excess return \\(R_p - R_f\\) (${escapeHtml(basisLabel(c))})</p>
+      </div></header>
+    <div class="tools settings-row">
         <label>Portfolio <select id="f-pf">${available.map((id) => `<option value="${id}" ${id === pf ? 'selected' : ''}>${SHORT[id]}</option>`).join('')}</select></label>
         <label>Inference <select id="f-inf">${(['classical', 'HC3', 'HAC'] as CovType[]).map((k) => `<option value="${k}" ${k === s.inference ? 'selected' : ''}>${k === 'classical' ? 'OLS' : k === 'HAC' ? 'Newey-West' : 'HC3'}</option>`).join('')}</select></label>
-        <label>Model (charts) <select id="f-model">${MODEL_IDS.map((m) => `<option value="${m}" ${m === s.model ? 'selected' : ''}>${MODELS[m].label}</option>`).join('')}</select></label>
-      </div></header>
+    </div>
     <p class="note">\\[ R_p - R_f = \\alpha + \\beta_M\\,\\mathrm{MKT} + \\beta_S\\,\\mathrm{SMB} + \\beta_H\\,\\mathrm{HML} + \\beta_R\\,\\mathrm{RMW} + \\beta_C\\,\\mathrm{CMA} + \\beta_W\\,\\mathrm{MOM} + \\beta_B\\,\\mathrm{BAB} + \\varepsilon \\]
     MKT = SPI total return − Swiss \\(r_f\\).
     SMB, HML, RMW, CMA, MOM and BAB (low beta − high beta) are the Swiss <strong>Jensen-Kelly-Pedersen</strong> long-short factors built on market_equity, be_me, ope_be, at_gr1, ret_12_1 and betabab_1260d (capped value weights, converted from USD to CHF as \\(F(1 + s)\\)).
@@ -70,7 +70,7 @@ export function renderFactors(c: Ctx): void {
   <section class="card">
     <header class="card-head"><div><h3>${LABEL[pf]}: coefficients by model</h3>
       <p class="muted small">Coefficient, with its ${s.inference === 'classical' ? 't' : 'z'}-statistic in parentheses below. * p &lt; 0.10, ** p &lt; 0.05, *** p &lt; 0.01 (two-sided). Inference: ${INFERENCE[s.inference]}.</p></div>
-      <div class="tools"><button type="button" id="dl-acad">Export CSV</button></div></header>
+      </header>
     <div class="table-wrap"><table class="data academic" id="tb-acad">
       <thead><tr><th></th>${MODEL_IDS.map((m) => `<th>${MODELS[m].label}</th>`).join('')}</tr></thead>
       <tbody>
@@ -83,6 +83,7 @@ export function renderFactors(c: Ctx): void {
         <tr><th scope="row">Frequency</th>${MODEL_IDS.map(() => '<td>Monthly</td>').join('')}</tr>
         <tr><th scope="row">Inference</th>${MODEL_IDS.map((m) => `<td class="small">${s.inference === 'HAC' && F[m].ok ? `NW, L = ${F[m].result.hacLags}` : s.inference === 'HC3' ? 'HC3' : 'OLS'}</td>`).join('')}</tr>
       </tbody></table></div>
+    <div class="exports"><button type="button" id="dl-acad">CSV</button></div>
     <details><summary>Standard errors, p-values and 95 % confidence intervals</summary>
       <div class="table-wrap"><table class="data" id="tb-detail"><thead><tr><th>Model</th><th>Variable</th><th>Coefficient</th><th>Std. error</th><th>${s.inference === 'classical' ? 't' : 'z'}</th><th>p-value</th><th>95 % CI low</th><th>95 % CI high</th></tr></thead><tbody>
       ${MODEL_IDS.map((m) => {
@@ -95,6 +96,11 @@ export function renderFactors(c: Ctx): void {
       </tbody></table></div></details>
     <p class="note">Statistical significance is not economic importance: an alpha of 0.05 % per month can be "significant" with a long sample and economically negligible, and a large alpha can be insignificant because returns are noisy. Read the size (annualised) together with the confidence interval.</p>
   </section>
+
+  <div class="tools settings-row model-row">
+    <label>Model <select id="f-model">${MODEL_IDS.map((m) => `<option value="${m}" ${m === s.model ? 'selected' : ''}>${MODELS[m].label}</option>`).join('')}</select></label>
+    <span class="muted small">Model used in the tables and figures below.</span>
+  </div>
 
   <section class="card">
     <header class="card-head"><div><h3>All portfolios — ${MODELS[s.model].label}</h3></div><div class="tools"><button type="button" id="dl-cmp">Export CSV</button></div></header>

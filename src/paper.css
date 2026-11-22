@@ -108,3 +108,8 @@ table.data tbody tr:last-child td, table.data tbody tr:last-child th { border-bo
 
 /* Light / dark toggle at the right end of the header */
 .top .icon-btn { margin-left: auto; }
+
+/* Section-level settings (Factor Analysis) */
+.settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 8px 0 4px; font-family: var(--sans); font-size: 13px; }
+.settings-row label { display: flex; align-items: center; gap: 6px; }
+.model-row { border-top: 1px solid var(--border); padding-top: 14px; margin: 6px 0 -6px; }
