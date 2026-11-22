@@ -55,10 +55,11 @@ h2 { font-family: var(--serif); font-weight: 600; font-size: 23px; letter-spacin
 h3 { font-family: var(--serif); font-weight: 600; font-size: 17px; }
 
 /* Numbered figures and tables */
-.card:has(.chart) > h3::before,
-.card:has(.chart) > .card-head h3::before { counter-increment: fig; content: 'Figure ' counter(fig) '. '; font-weight: 400; font-style: italic; }
-.card:has(table.data):not(:has(.chart)) > h3::before,
-.card:has(table.data):not(:has(.chart)) > .card-head h3::before { counter-increment: tab; content: 'Table ' counter(tab) '. '; font-weight: 400; font-style: italic; }
+/* Not in the methodology text (.prose), whose sections are numbered already */
+.card:not(.prose):has(.chart) > h3::before,
+.card:not(.prose):has(.chart) > .card-head h3::before { counter-increment: fig; content: 'Figure ' counter(fig) '. '; font-weight: 400; font-style: italic; }
+.card:not(.prose):has(table.data):not(:has(.chart)) > h3::before,
+.card:not(.prose):has(table.data):not(:has(.chart)) > .card-head h3::before { counter-increment: tab; content: 'Table ' counter(tab) '. '; font-weight: 400; font-style: italic; }
 
 /* Key figures: one ruled row instead of boxed tiles */
 .tiles { display: flex; gap: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 14px 0; }
@@ -67,17 +68,14 @@ h3 { font-family: var(--serif); font-weight: 600; font-size: 17px; }
 .tile-v { font-size: 20px; font-weight: 600; }
 .tile-l { font-style: italic; font-size: 13px; }
 
-/* Booktabs tables */
-table.data { font-family: var(--serif); font-size: 14px; }
-table.data th, table.data td { border-bottom: 0; padding: 4px 12px; }
-table.data thead th { background: var(--bg); color: var(--fg); font-weight: 600; font-size: 13px; }
-/* Header cells are sticky and painted, which hides collapsed borders: draw the rules inside them */
-table.data thead th { border-top: 0; border-bottom: 0; }
-table.data thead tr:first-child th { box-shadow: inset 0 2px 0 var(--fg); }
-table.data thead tr:last-child th { box-shadow: inset 0 -1px 0 var(--fg); }
-table.data thead tr:first-child:last-child th,
-table.data thead tr:first-child th[rowspan]:not([rowspan='1']) { box-shadow: inset 0 2px 0 var(--fg), inset 0 -1px 0 var(--fg); }
-table.data tbody tr:last-child td, table.data tbody tr:last-child th { border-bottom: 2px solid var(--fg); }
+/* Booktabs tables. Header cells are sticky and painted: with separate borders the rules stay visible */
+table.data { font-family: var(--serif); font-size: 14px; border-collapse: separate; border-spacing: 0; }
+table.data th, table.data td { border-bottom: 0; padding: 4px 8px; }
+table.data thead th { background: var(--bg); color: var(--fg); font-weight: 600; font-size: 13px; border-top: 0; border-bottom: 0; }
+table.data thead tr:first-child th { border-top: 1.5px solid var(--fg); }
+table.data thead tr:last-child th,
+table.data thead th[rowspan]:not([rowspan='1']) { border-bottom: 1px solid var(--fg); }
+table.data tbody tr:last-child td, table.data tbody tr:last-child th { border-bottom: 1.5px solid var(--fg); }
 
 /* Run-in italic headings instead of bold lead-ins */
 .note { font-size: 13.5px; line-height: 1.55; }

@@ -66,6 +66,65 @@ export function baseLayout(t: Theme, extra: Record<string, unknown> = {}): Recor
   return base;
 }
 
+const LABEL_POSITIONS = ['top center', 'bottom center', 'middle right', 'middle left', 'top right', 'top left', 'bottom right', 'bottom left'] as const;
+
+/**
+ * Text positions for labelled points (one Plotly textposition per point) that keep labels
+ * off each other and off the other labelled markers. Greedy search in pixel units, estimated
+ * from the chart size and the data range (`range` holds the other plotted points).
+ */
+export function labelPositions(
+  el: HTMLElement | null,
+  pts: { x: number; y: number; text: string }[],
+  range: { x: number[]; y: number[] } = { x: [], y: [] },
+  opts: { xZero?: boolean } = {},
+): string[] {
+  const xs = [...range.x, ...pts.map((p) => p.x)].filter(Number.isFinite);
+  const ys = [...range.y, ...pts.map((p) => p.y)].filter(Number.isFinite);
+  if (!pts.length || !xs.length || !ys.length) return pts.map(() => 'top center');
+  let x0 = Math.min(...xs);
+  let x1 = Math.max(...xs);
+  let y0 = Math.min(...ys);
+  let y1 = Math.max(...ys);
+  if (opts.xZero) x0 = Math.min(0, x0);
+  const padX = (x1 - x0 || 1) * 0.05;
+  const padY = (y1 - y0 || 1) * 0.05;
+  x0 -= padX; x1 += padX; y0 -= padY; y1 += padY;
+  const W = Math.max(200, (el?.clientWidth || 500) - 90);
+  const H = Math.max(150, (el?.clientHeight || 380) - 75);
+  const px = (x: number) => ((x - x0) / (x1 - x0)) * W;
+  const py = (y: number) => ((y1 - y) / (y1 - y0)) * H;
+  type Box = [number, number, number, number];
+  const overlap = (a: Box, b: Box) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+  const R = 7, GAP = 3, CHAR = 6.5, LINE = 13;
+  const box = (cx: number, cy: number, w: number, pos: string): Box => {
+    const [v, h] = pos.split(' ');
+    const l = h === 'center' ? cx - w / 2 : h === 'right' ? cx + R + GAP : cx - R - GAP - w;
+    const top = v === 'middle' ? cy - LINE / 2 : v === 'top' ? cy - R - GAP - LINE : cy + R + GAP;
+    return [l, top, l + w, top + LINE];
+  };
+  const markers: Box[] = pts.map((p) => [px(p.x) - R, py(p.y) - R, px(p.x) + R, py(p.y) + R]);
+  const placed: Box[] = [];
+  return pts.map((p, i) => {
+    const cx = px(p.x);
+    const cy = py(p.y);
+    const w = p.text.length * CHAR;
+    let best: string = LABEL_POSITIONS[0];
+    let bestScore = Infinity;
+    for (const pos of LABEL_POSITIONS) {
+      const b = box(cx, cy, w, pos);
+      let score = 0;
+      for (const q of placed) if (overlap(b, q)) score += 10;
+      markers.forEach((m, j) => { if (j !== i && overlap(b, m)) score += 5; });
+      if (b[0] < 0 || b[2] > W || b[1] < 0 || b[3] > H) score += 3;
+      if (score < bestScore) { bestScore = score; best = pos; }
+      if (score === 0) break;
+    }
+    placed.push(box(cx, cy, w, best));
+    return best;
+  });
+}
+
 export function draw(el: HTMLElement | null, data: unknown[], layout: Record<string, unknown>): void {
   if (!el) return;
   void Plotly.react(el, data, layout, CONFIG);

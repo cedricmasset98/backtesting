@@ -24,6 +24,6 @@ export function download(filename: string, content: string, mime = 'text/csv;cha
 
 /** CSV of an HTML table as displayed (header rows included). */
 export function tableCsv(table: HTMLTableElement): string {
-  const rows = [...table.querySelectorAll('tr')].map((tr) => [...tr.querySelectorAll('th,td')].map((c) => (c as HTMLElement).dataset.v ?? c.textContent?.trim() ?? ''));
+  const rows = [...table.querySelectorAll('tr')].map((tr) => [...tr.querySelectorAll('th,td')].map((c) => (c as HTMLElement).dataset.v ?? (c.textContent ?? '').trim().replace(/\u2212/g, '-')));
   return toCsv(rows);
 }

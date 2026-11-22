@@ -3,7 +3,7 @@
 import type { SeriesId } from '../data/types.ts';
 import { cumulativeCosts, mean, sd, type PerfStats } from '../engine/metrics.ts';
 import { monthEnd, STRATS } from '../model.ts';
-import { baseLayout, draw, exportsHtml, LABEL, SHORT, wireExports } from '../ui/charts.ts';
+import { baseLayout, draw, exportsHtml, LABEL, labelPositions, SHORT, wireExports } from '../ui/charts.ts';
 import { biasShade } from './performance.ts';
 import { basisLabel, configLabel, decomposition, periodLabel, stats, type Ctx } from '../ui/context.ts';
 import { download, tableCsv, toCsv } from '../ui/export.ts';
@@ -141,9 +141,10 @@ export function renderRisk(c: Ctx): void {
   });
   const traces: unknown[] = [];
   if (mk.length) traces.push({ x: mk.map((m) => m.vol), y: mk.map((m) => m.cagr), name: '100 monkeys', type: 'scatter', mode: 'markers', marker: { color: t.muted, size: 6, opacity: 0.35 }, hovertemplate: 'Monkey: vol %{x:.1%}, CAGR %{y:.1%}<extra></extra>' });
-  for (const id of ids) {
+  const rrPos = labelPositions(document.getElementById('ch-rr'), ids.map((id) => ({ x: stats(c, id).vol, y: stats(c, id).cagr, text: SHORT[id] })), { x: mk.map((m) => m.vol), y: mk.map((m) => m.cagr) });
+  for (const [k, id] of ids.entries()) {
     const st = stats(c, id);
-    traces.push({ x: [st.vol], y: [st.cagr], name: SHORT[id], type: 'scatter', mode: 'markers+text', text: [SHORT[id]], textposition: 'top center', textfont: { color: t.fg, size: 11 }, marker: { color: t.color[id], size: 11, line: { color: t.bg, width: 2 }, symbol: id === 'CW' ? 'diamond' : 'circle' }, hovertemplate: `${LABEL[id]}: vol %{x:.2%}, CAGR %{y:.2%}<extra></extra>` });
+    traces.push({ x: [st.vol], y: [st.cagr], name: SHORT[id], type: 'scatter', mode: 'markers+text', text: [SHORT[id]], textposition: rrPos[k], textfont: { color: t.fg, size: 11 }, marker: { color: t.color[id], size: 11, line: { color: t.bg, width: 2 }, symbol: id === 'CW' ? 'diamond' : 'circle' }, hovertemplate: `${LABEL[id]}: vol %{x:.2%}, CAGR %{y:.2%}<extra></extra>` });
   }
   draw(document.getElementById('ch-rr'), traces, baseLayout(t, { showlegend: false, xaxis: { title: { text: 'Volatility (annualised)' }, tickformat: '.0%' }, yaxis: { title: { text: 'CAGR' }, tickformat: '.0%' } }));
 

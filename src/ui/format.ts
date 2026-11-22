@@ -10,9 +10,10 @@ export function num(x: number, digits = 3): string {
   return noNegZero(x.toFixed(digits));
 }
 
-/** '-0.00' → '0.00' (a value that rounds to zero carries no sign). */
+/** '-0.00' → '0.00' (a value that rounds to zero carries no sign); otherwise a true minus sign (U+2212), as in signedPct. */
 function noNegZero(s: string): string {
-  return /^-0\.?0*$/.test(s) ? s.slice(1) : s;
+  if (/^-0\.?0*$/.test(s)) return s.slice(1);
+  return s.startsWith('-') ? `\u2212${s.slice(1)}` : s;
 }
 
 export function pval(p: number): string {

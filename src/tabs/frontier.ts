@@ -2,7 +2,7 @@
 
 import type { FrontierFile, StratId } from '../data/types.ts';
 import { sd } from '../engine/metrics.ts';
-import { baseLayout, draw, exportsHtml, LABEL, SHORT, wireExports } from '../ui/charts.ts';
+import { baseLayout, draw, exportsHtml, LABEL, labelPositions, SHORT, wireExports } from '../ui/charts.ts';
 import { configLabel, periodLabel, stats, type Ctx } from '../ui/context.ts';
 import { toCsv } from '../ui/export.ts';
 import { escapeHtml } from '../ui/format.ts';
@@ -44,9 +44,15 @@ export function renderFrontier(c: Ctx, fr: FrontierFile): void {
     { x: snap.frontier.map((p) => A(p[0])), y: snap.frontier.map((p) => M(p[1])), name: 'Efficient frontier (ex ante)', type: 'scatter', mode: 'lines', line: { color: t.fg, width: 2 }, hovertemplate: 'frontier: σ %{x:.2%}, μ %{y:.2%}<extra></extra>' },
   ];
   if (slope > 0) traces.push({ x: [0, xmax], y: [rfA, rfA + slope * xmax], name: 'Capital allocation line', type: 'scatter', mode: 'lines', line: { color: t.color.TP, width: 1.5, dash: 'dash' }, hovertemplate: 'CAL: σ %{x:.1%}, μ %{y:.1%}<extra></extra>' });
-  for (const k of EX_ANTE) {
+  const exPos = labelPositions(
+    document.getElementById('ch-exante'),
+    EX_ANTE.map((k) => ({ x: A(snap.strategies[k][0]), y: M(snap.strategies[k][1]), text: SHORT[k] })),
+    { x: [...snap.frontier.map((p) => A(p[0])), ...snap.monkeys.map((p) => A(p[0]))], y: [...snap.frontier.map((p) => M(p[1])), ...snap.monkeys.map((p) => M(p[1]))] },
+    { xZero: true },
+  );
+  for (const [i, k] of EX_ANTE.entries()) {
     const p = snap.strategies[k];
-    traces.push({ x: [A(p[0])], y: [M(p[1])], name: SHORT[k], type: 'scatter', mode: 'markers+text', text: [SHORT[k]], textposition: 'top center', textfont: { color: t.fg, size: 11 }, marker: { color: t.color[k], size: 11, line: { color: t.bg, width: 2 } }, hovertemplate: `${LABEL[k]}: σ %{x:.2%}, μ %{y:.2%} (ex ante)<extra></extra>` });
+    traces.push({ x: [A(p[0])], y: [M(p[1])], name: SHORT[k], type: 'scatter', mode: 'markers+text', text: [SHORT[k]], textposition: exPos[i], textfont: { color: t.fg, size: 11 }, marker: { color: t.color[k], size: 11, line: { color: t.bg, width: 2 } }, hovertemplate: `${LABEL[k]}: σ %{x:.2%}, μ %{y:.2%} (ex ante)<extra></extra>` });
   }
   draw(document.getElementById('ch-exante'), traces, baseLayout(t, { xaxis: { title: { text: 'Expected volatility (ex ante, annualised)' }, tickformat: '.0%', rangemode: 'tozero' }, yaxis: { title: { text: 'Expected return (ex ante, annualised)' }, tickformat: '.0%' }, legend: { orientation: 'h', y: -0.2 } }));
 
@@ -54,9 +60,10 @@ export function renderFrontier(c: Ctx, fr: FrontierFile): void {
   const mk = c.view.monkeys.r.map((r) => [sd(r) * Math.sqrt(12), (12 * r.reduce((a, b) => a + b, 0)) / r.length]);
   const rtr: unknown[] = [];
   if (mk.length) rtr.push({ x: mk.map((p) => p[0]), y: mk.map((p) => p[1]), name: 'Monkeys', type: 'scatter', mode: 'markers', marker: { color: t.muted, size: 5, opacity: 0.35 }, hovertemplate: 'monkey: σ %{x:.1%}, μ %{y:.1%}<extra></extra>' });
-  for (const id of ids) {
+  const realPos = labelPositions(document.getElementById('ch-real'), ids.map((id) => ({ x: stats(c, id).vol, y: stats(c, id).arithAnnual, text: SHORT[id] })), { x: mk.map((p) => p[0]), y: mk.map((p) => p[1]) }, { xZero: true });
+  for (const [i, id] of ids.entries()) {
     const st = stats(c, id);
-    rtr.push({ x: [st.vol], y: [st.arithAnnual], name: SHORT[id], type: 'scatter', mode: 'markers+text', text: [SHORT[id]], textposition: 'top center', textfont: { color: t.fg, size: 11 }, marker: { color: t.color[id], size: 11, symbol: id === 'CW' ? 'diamond' : 'circle', line: { color: t.bg, width: 2 } }, hovertemplate: `${LABEL[id]}: σ %{x:.2%}, mean %{y:.2%} (realised)<extra></extra>` });
+    rtr.push({ x: [st.vol], y: [st.arithAnnual], name: SHORT[id], type: 'scatter', mode: 'markers+text', text: [SHORT[id]], textposition: realPos[i], textfont: { color: t.fg, size: 11 }, marker: { color: t.color[id], size: 11, symbol: id === 'CW' ? 'diamond' : 'circle', line: { color: t.bg, width: 2 } }, hovertemplate: `${LABEL[id]}: σ %{x:.2%}, mean %{y:.2%} (realised)<extra></extra>` });
   }
   draw(document.getElementById('ch-real'), rtr, baseLayout(t, { showlegend: false, xaxis: { title: { text: 'Realised volatility (annualised)' }, tickformat: '.0%', rangemode: 'tozero' }, yaxis: { title: { text: 'Realised mean return (×12)' }, tickformat: '.0%' } }));
 
