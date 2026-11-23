@@ -8,6 +8,10 @@ import { toCsv } from '../ui/export.ts';
 import { escapeHtml } from '../ui/format.ts';
 
 const EX_ANTE: StratId[] = ['EW', 'GMV', 'ERC', 'TP', 'MDP', 'IVP'];
+/** Right edge of the ex ante volatility axis (annualised). Beyond it the capped frontier only
+ *  approaches the maximum-mean portfolio, adding almost no expected return for a lot of risk;
+ *  the axis is widened only if a strategy or a random portfolio lies further right. */
+const X_CAP = 0.3;
 
 export function renderFrontier(c: Ctx, fr: FrontierFile): void {
   const { s, theme: t } = c;
@@ -16,6 +20,16 @@ export function renderFrontier(c: Ctx, fr: FrontierFile): void {
   const A = (sdv: number) => sdv * Math.sqrt(12);
   const M = (mu: number) => mu * 12;
   const capTxt = fr.cap_value >= 1 ? 'long-only, fully invested' : `long-only, fully invested, weights ≤ ${(fr.cap_value * 100).toFixed(0)} %`;
+
+  // Volatility axis: up to the frontier's end, but no further than X_CAP unless a plotted point needs it.
+  const pointsMax = Math.max(...snap.monkeys.map((p) => A(p[0])), ...EX_ANTE.map((k) => A(snap.strategies[k][0])));
+  const fTop = snap.frontier[snap.frontier.length - 1];
+  const xmax = Math.min(Math.max(A(fTop[0]), pointsMax) * 1.08, Math.max(X_CAP, pointsMax * 1.08));
+  const shown = snap.frontier.filter((p) => A(p[0]) <= xmax);
+  const fLast = shown[shown.length - 1];
+  const truncNote = A(fTop[0]) > xmax && fLast
+    ? ` The axis stops at ${(xmax * 100).toFixed(0)} %: beyond it the frontier continues to the maximum expected-return portfolio (σ = ${(A(fTop[0]) * 100).toFixed(1)} %, μ = ${(M(fTop[1]) * 100).toFixed(1)} %), gaining only ${((M(fTop[1]) - M(fLast[1])) * 100).toFixed(1)} pp of expected return. The full frontier is in the CSV export.`
+    : '';
 
   c.root.innerHTML = `
   <section class="card">
@@ -28,7 +42,7 @@ export function renderFrontier(c: Ctx, fr: FrontierFile): void {
   </section>
   <div class="grid2">
     <section class="card"><h3>Ex ante — estimated at ${snap.month}</h3><div id="ch-exante" class="chart tall"></div>${exportsHtml('ch-exante', `frontier_ex_ante_${snap.month}`)}
-      <p class="note">Annualised: \\(\\mu \\times 12\\), \\(\\sigma \\times \\sqrt{12}\\). Grey dots: 100 random 30-stock equally weighted portfolios drawn at the same date (seed 1), evaluated with the same estimates. Expected returns are estimates, which is why the realised positions differ.</p></section>
+      <p class="note">Annualised: \\(\\mu \\times 12\\), \\(\\sigma \\times \\sqrt{12}\\). Grey dots: 100 random 30-stock equally weighted portfolios drawn at the same date (seed 1), evaluated with the same estimates. Expected returns are estimates, which is why the realised positions differ.${truncNote}</p></section>
     <section class="card"><h3>Realised out of sample — ${escapeHtml(periodLabel(c))}</h3><div id="ch-real" class="chart tall"></div>${exportsHtml('ch-real', 'realised_risk_return')}
       <p class="note">Annualised volatility and arithmetic mean return (12 × mean, ${s.basis}) of the monthly returns actually earned. Grey dots: the 100 monkeys (K = ${s.k}, seed ${s.seed}).</p></section>
   </div>`;
@@ -38,7 +52,6 @@ export function renderFrontier(c: Ctx, fr: FrontierFile): void {
   const rfA = M(snap.rf);
   const tp = snap.strategies.TP;
   const slope = (M(tp[1]) - rfA) / A(tp[0]);
-  const xmax = Math.max(...snap.frontier.map((p) => A(p[0])), ...snap.monkeys.map((p) => A(p[0])), ...EX_ANTE.map((k) => A(snap.strategies[k][0]))) * 1.08;
   const traces: unknown[] = [
     { x: snap.monkeys.map((p) => A(p[0])), y: snap.monkeys.map((p) => M(p[1])), name: 'Random portfolios', type: 'scatter', mode: 'markers', marker: { color: t.muted, size: 5, opacity: 0.35 }, hovertemplate: 'random: σ %{x:.1%}, μ %{y:.1%}<extra></extra>' },
     { x: snap.frontier.map((p) => A(p[0])), y: snap.frontier.map((p) => M(p[1])), name: 'Efficient frontier (ex ante)', type: 'scatter', mode: 'lines', line: { color: t.fg, width: 2 }, hovertemplate: 'frontier: σ %{x:.2%}, μ %{y:.2%}<extra></extra>' },
@@ -47,14 +60,14 @@ export function renderFrontier(c: Ctx, fr: FrontierFile): void {
   const exPos = labelPositions(
     document.getElementById('ch-exante'),
     EX_ANTE.map((k) => ({ x: A(snap.strategies[k][0]), y: M(snap.strategies[k][1]), text: SHORT[k] })),
-    { x: [...snap.frontier.map((p) => A(p[0])), ...snap.monkeys.map((p) => A(p[0]))], y: [...snap.frontier.map((p) => M(p[1])), ...snap.monkeys.map((p) => M(p[1]))] },
+    { x: [...shown.map((p) => A(p[0])), ...snap.monkeys.map((p) => A(p[0]))], y: [...shown.map((p) => M(p[1])), ...snap.monkeys.map((p) => M(p[1]))] },
     { xZero: true },
   );
   for (const [i, k] of EX_ANTE.entries()) {
     const p = snap.strategies[k];
     traces.push({ x: [A(p[0])], y: [M(p[1])], name: SHORT[k], type: 'scatter', mode: 'markers+text', text: [SHORT[k]], textposition: exPos[i], textfont: { color: t.fg, size: 11 }, marker: { color: t.color[k], size: 11, line: { color: t.bg, width: 2 } }, hovertemplate: `${LABEL[k]}: σ %{x:.2%}, μ %{y:.2%} (ex ante)<extra></extra>` });
   }
-  draw(document.getElementById('ch-exante'), traces, baseLayout(t, { xaxis: { title: { text: 'Expected volatility (ex ante, annualised)' }, tickformat: '.0%', rangemode: 'tozero' }, yaxis: { title: { text: 'Expected return (ex ante, annualised)' }, tickformat: '.0%' }, legend: { orientation: 'h', y: -0.2 } }));
+  draw(document.getElementById('ch-exante'), traces, baseLayout(t, { xaxis: { title: { text: 'Expected volatility (ex ante, annualised)' }, tickformat: '.0%', range: [0, xmax] }, yaxis: { title: { text: 'Expected return (ex ante, annualised)' }, tickformat: '.0%' }, legend: { orientation: 'h', y: -0.2 } }));
 
   const ids = c.visible;
   const mk = c.view.monkeys.r.map((r) => [sd(r) * Math.sqrt(12), (12 * r.reduce((a, b) => a + b, 0)) / r.length]);
