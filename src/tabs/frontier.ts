@@ -67,7 +67,14 @@ export function renderFrontier(c: Ctx, fr: FrontierFile): void {
     const p = snap.strategies[k];
     traces.push({ x: [A(p[0])], y: [M(p[1])], name: SHORT[k], type: 'scatter', mode: 'markers+text', text: [SHORT[k]], textposition: exPos[i], textfont: { color: t.fg, size: 11 }, marker: { color: t.color[k], size: 11, line: { color: t.bg, width: 2 } }, hovertemplate: `${LABEL[k]}: σ %{x:.2%}, μ %{y:.2%} (ex ante)<extra></extra>` });
   }
-  draw(document.getElementById('ch-exante'), traces, baseLayout(t, { xaxis: { title: { text: 'Expected volatility (ex ante, annualised)' }, tickformat: '.0%', range: [0, xmax] }, yaxis: { title: { text: 'Expected return (ex ante, annualised)' }, tickformat: '.0%' }, legend: { orientation: 'h', y: -0.2 } }));
+  // Return axis: fitted to the frontier, the portfolios and r_f. The capital allocation line is
+  // steep (TP has a high estimated Sharpe ratio) and is clipped instead of stretching the axis.
+  const ys = [...shown.map((p) => M(p[1])), ...snap.monkeys.map((p) => M(p[1])), ...EX_ANTE.map((k) => M(snap.strategies[k][1])), rfA];
+  const ylo = Math.min(0, ...ys);
+  const yhi = Math.max(...ys);
+  const ypad = (yhi - ylo) * 0.08;
+  const yrange = [ylo < 0 ? ylo - ypad : 0, yhi + ypad];
+  draw(document.getElementById('ch-exante'), traces, baseLayout(t, { xaxis: { title: { text: 'Expected volatility (ex ante, annualised)' }, tickformat: '.0%', range: [0, xmax] }, yaxis: { title: { text: 'Expected return (ex ante, annualised)' }, tickformat: '.0%', range: yrange }, legend: { orientation: 'h', y: -0.2 } }));
 
   const ids = c.visible;
   const mk = c.view.monkeys.r.map((r) => [sd(r) * Math.sqrt(12), (12 * r.reduce((a, b) => a + b, 0)) / r.length]);
